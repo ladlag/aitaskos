@@ -32,8 +32,7 @@
 | **监控** | Prometheus | 2.x | Apache 2.0 | 指标采集 |
 | **可视化监控** | Grafana | 10.x | AGPL-3.0 | 监控仪表盘 |
 | **链路追踪** | Jaeger | 1.x | Apache 2.0 | 分布式链路追踪 |
-| **日志** | ELK Stack | 8.x | Elastic License 2.0 / SSPL → 可替换为 OpenSearch | 日志收集分析 |
-| **日志（备选）** | OpenSearch | 2.x | Apache 2.0 | 日志分析（纯开源替代） |
+| **日志** | OpenSearch | 2.x | Apache 2.0 | 日志收集分析（纯开源方案） |
 | **认证** | Keycloak | 24+ | Apache 2.0 | SSO / OAuth2 / OIDC |
 
 ## 2. 各层详细选型说明
