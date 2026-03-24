@@ -404,7 +404,7 @@ CREATE TABLE tasks (
     employee_selector JSONB,                            -- 数字员工选择策略 {type: AUTO/MANUAL, employee_id}
     input_data      JSONB,                              -- 任务输入
     output_data     JSONB,                              -- 任务输出
-    quality_score   INTEGER,                            -- 用户质量评分 0-100
+    quality_score   INTEGER CHECK (quality_score >= 0 AND quality_score <= 100),  -- 用户质量评分 0-100
     created_by      BIGINT REFERENCES users(id),
     started_at      TIMESTAMP,
     completed_at    TIMESTAMP,
@@ -480,7 +480,7 @@ CREATE TABLE employee_agent_bindings (
     employee_id     BIGINT REFERENCES digital_employees(id),
     agent_id        BIGINT REFERENCES agents(id),
     capability      VARCHAR(100) NOT NULL,              -- 该绑定覆盖的能力
-    priority        INTEGER DEFAULT 1,                   -- 优先级（同能力多个 Agent 时）
+    priority        INTEGER DEFAULT 1,                   -- 优先级（数值越小优先级越高，1为最高）
     status          VARCHAR(20) DEFAULT 'active',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
