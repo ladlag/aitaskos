@@ -1,22 +1,40 @@
 # AiTaskOS — AI 数字员工平台
 
-> 构建一个"多租户、可审计的 AI 任务调度与执行编排平台"，内置初级产品经理级 BA 数字员工能力。
+> 构建一个"多租户、可审计的 AI 数字员工管理与任务调度平台"。所有业务 Agent 均为外部独立服务，平台只负责管人、派活、收结果、打分。
 
 ## 项目简介
 
-AiTaskOS 是一个 AI 数字员工平台（AI Digital Employee Platform），核心定位为 **AI 任务调度与执行编排中枢**。平台负责任务图管理、数字员工（Agent）标准化接入与调度执行，通过统一协议与回调机制管理所有执行过程与结果。
+AiTaskOS 是一个 AI 数字员工平台（AI Digital Employee Platform），核心定位为 **数字员工管理 + 任务分配中枢**。平台负责数字员工的定义与管理、任务调度编排、执行数据收集、监控审计与绩效考核。
+
+**核心边界**：平台不包含任何业务 Agent 实现。所有 Agent（需求分析、PRD 生成、开发、测试等）均为外部独立服务，可以是 Dify 创建的、第三方的、或自行开发的。
 
 ### 核心能力
 
-- 🧠 **BA 数字员工**：需求理解、需求澄清、需求拆解、PRD 生成、流程设计、原型设计、需求评审、需求优化、存量系统升级设计
-- 🔧 **平台能力**：任务管理、Agent 管理、调度编排、执行数据管理、审计与可观测
+- 👤 **数字员工管理**：数字员工定义、角色配置、Agent 绑定、工作流关联、绩效考核
+- 📋 **任务管理**：任务创建、Task Graph、依赖管理、状态流转、优先级调度
+- 🔧 **调度编排**：Task → 数字员工 → Agent 匹配，DAG 执行，并发控制
+- 📊 **监控考核**：执行日志、操作审计、全链路追踪、绩效统计
 - 💬 **交互能力**：实时交互、人机协同、局部修改、多轮迭代、知识沉淀
 
 ### 数字员工模型
 
 ```
-数字员工 = Workflow（流程）+ Agent（决策）+ Skill（能力）
-         + Knowledge（知识）+ Memory（上下文）+ Queue（指令队列）
+数字员工 (Digital Employee)
+  = 角色定义（Role）        ← 平台定义：BA、开发、测试、运维...
+  + Agent 绑定（Agent[]）   ← 外部 Agent：Dify / 第三方 / 自建
+  + Workflow（流程）         ← 工作流模板：任务执行的 DAG 编排
+  + Knowledge（知识）       ← 关联的知识库
+  + Memory（上下文）        ← 项目/迭代上下文
+  + Queue（指令队列）       ← 接收的任务指令
+```
+
+### 平台与 Agent 的关系
+
+```
+Platform (AiTaskOS) = 数字员工管理 + 任务调度 + 执行监控 + 绩效考核
+Agent (外部独立)    = 业务逻辑执行（需求分析/开发/测试/...）
+
+Platform ──调度──▶ External Agent ──回调──▶ Platform ──SSE──▶ Frontend
 ```
 
 ## 核心技术栈
@@ -26,8 +44,8 @@ AiTaskOS 是一个 AI 数字员工平台（AI Digital Employee Platform），核
 | 前端 | Vue 3 + Element Plus + TipTap + AntV X6 | MIT |
 | 后端 | Spring Boot 3.x + Spring WebFlux | Apache 2.0 |
 | Agent 框架 | LangChain4j | Apache 2.0 |
-| 工作流 | Temporal | MIT |
 | AI 工作流 | Dify | Apache 2.0 |
+| 工作流 | Temporal | MIT |
 | 模型网关 | LiteLLM | MIT |
 | 数据库 | PostgreSQL | PostgreSQL License |
 | 缓存 | Redis 7.2 / Valkey | BSD-3 |
@@ -48,13 +66,15 @@ AiTaskOS 是一个 AI 数字员工平台（AI Digital Employee Platform），核
 ├────────────────────────────────────────────────────┤
 │          API 网关层 (Apache APISIX)                 │
 ├────────────────────────────────────────────────────┤
-│       数字员工管理层 (Spring Boot 3.x)               │
+│    数字员工管理层 (Spring Boot 3.x)                  │
+│    数字员工 · 任务 · 调度 · 考核                      │
 ├────────────────────────────────────────────────────┤
 │      调度编排层 (Temporal + 指令队列)                 │
 ├────────────────────────────────────────────────────┤
 │      Agent 网关层 (标准协议 + 适配器)                 │
 ├────────────────────────────────────────────────────┤
-│    Agent 执行层 (内置Agent / Dify / 外部Agent)       │
+│   外部 Agent 执行层 (Dify / 自建 / 第三方)           │
+│   全部解耦，通过标准协议接入                           │
 ├────────────────────────────────────────────────────┤
 │   模型与工具层 (LiteLLM / Ollama / PaddleOCR)       │
 ├────────────────────────────────────────────────────┤
@@ -70,7 +90,7 @@ AiTaskOS 是一个 AI 数字员工平台（AI Digital Employee Platform），核
 | [02-技术选型方案](docs/02-technology-stack.md) | 各层技术选型、许可证合规矩阵 |
 | [03-用户交互层设计](docs/03-user-interaction-design.md) | 四区布局、交互流程、组件设计、前端架构 |
 | [04-数据模型设计](docs/04-data-model-design.md) | DSL 结构、数据库模型、通信协议 |
-| [05-Agent 系统设计](docs/05-agent-system-design.md) | 9 个内置 Agent、Skill 平台、调度策略、Gateway |
+| [05-Agent 系统设计](docs/05-agent-system-design.md) | 数字员工体系、外部 Agent 接入规范、Gateway、调度策略、考核统计 |
 | [06-API 设计规范](docs/06-api-design.md) | RESTful API、SSE 事件、错误码规范 |
 | [07-工作流与编排设计](docs/07-workflow-design.md) | Temporal 工作流、指令队列编排、事件驱动、并发控制 |
 | [08-部署与基础设施设计](docs/08-deployment-design.md) | Docker Compose、K8s 部署、监控告警、备份恢复 |

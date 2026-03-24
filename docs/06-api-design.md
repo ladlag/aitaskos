@@ -149,7 +149,31 @@ POST   /api/v1/questions/{id}/answer        回答问题
 POST   /api/v1/questions/{id}/skip          跳过问题
 ```
 
-### 3.6 任务管理 API
+### 3.6 数字员工管理 API
+
+```
+POST   /api/v1/employees                  创建数字员工
+GET    /api/v1/employees                  数字员工列表
+GET    /api/v1/employees/{id}             数字员工详情
+PUT    /api/v1/employees/{id}             更新数字员工
+DELETE /api/v1/employees/{id}             删除数字员工
+PUT    /api/v1/employees/{id}/status      启用/禁用/暂停
+
+-- Agent 绑定管理
+POST   /api/v1/employees/{id}/agents      绑定 Agent
+DELETE /api/v1/employees/{id}/agents/{agentId}  解绑 Agent
+PUT    /api/v1/employees/{id}/agents/{agentId}  更新绑定配置
+
+-- 工作流关联
+POST   /api/v1/employees/{id}/workflows   关联工作流模板
+DELETE /api/v1/employees/{id}/workflows/{code}  取消关联
+
+-- 考核与统计
+GET    /api/v1/employees/{id}/performance  绩效统计
+GET    /api/v1/employees/{id}/tasks        任务历史
+```
+
+### 3.7 任务管理 API
 
 ```
 POST   /api/v1/tasks                       创建任务
@@ -160,17 +184,17 @@ PUT    /api/v1/tasks/{id}/cancel           取消任务
 PUT    /api/v1/tasks/{id}/retry            重试任务
 ```
 
-### 3.7 Agent 管理 API
+### 3.8 Agent 管理 API
 
 ```
-POST   /api/v1/agents                     注册 Agent
+POST   /api/v1/agents                     注册外部 Agent
 GET    /api/v1/agents                     Agent 列表
 GET    /api/v1/agents/{id}                Agent 详情
 PUT    /api/v1/agents/{id}                更新 Agent 配置
 PUT    /api/v1/agents/{id}/status         启用/禁用 Agent
 GET    /api/v1/agents/{id}/health         Agent 健康检查
 
--- Agent 回调接口（Agent → 平台）
+-- Agent 回调接口（外部 Agent → 平台）
 POST   /api/v1/agent/callback             Agent 执行回调
   Body: {
     "request_id": "req_xxx",
@@ -183,7 +207,7 @@ POST   /api/v1/agent/callback             Agent 执行回调
   }
 ```
 
-### 3.8 知识库 API
+### 3.9 知识库 API
 
 ```
 POST   /api/v1/knowledge                  上传知识文档
@@ -200,7 +224,7 @@ POST   /api/v1/knowledge/search           知识检索
   }
 ```
 
-### 3.9 文件上传 API
+### 3.10 文件上传 API
 
 ```
 POST   /api/v1/files/upload               上传文件
@@ -212,7 +236,7 @@ GET    /api/v1/files/{id}/content         获取解析后的内容
 GET    /api/v1/files/{id}/download        下载原文件
 ```
 
-### 3.10 导出 API
+### 3.11 导出 API
 
 ```
 POST   /api/v1/export/prd                 导出 PRD
@@ -230,7 +254,7 @@ POST   /api/v1/export/flow                导出流程图
   }
 ```
 
-### 3.11 审计 API
+### 3.12 审计 API
 
 ```
 GET    /api/v1/audit/logs                  审计日志

@@ -101,14 +101,16 @@ public class NewRequirementWorkflowImpl implements NewRequirementWorkflow {
 
     @Override
     public WorkflowResult execute(RequirementInput input) {
-        // 1. 输入解析
+        // 1. 输入预处理（平台内部能力）
         ParsedInput parsed = activities.parseInput(input);
 
-        // 2. 需求理解
-        UnderstandingResult understanding = activities.understandRequirement(parsed);
+        // 2. 需求理解（调度到外部 Agent）
+        UnderstandingResult understanding = activities.dispatchToAgent(
+            "requirement_analysis", parsed);
 
-        // 3. 需求澄清（可能多轮）
-        ClarificationResult clarification = activities.clarifyRequirement(understanding);
+        // 3. 需求澄清（调度到外部 Agent，可能多轮）
+        ClarificationResult clarification = activities.dispatchToAgent(
+            "requirement_clarification", understanding);
 
         while (clarification.hasQuestions()) {
             // 发送问题给前端
@@ -117,33 +119,39 @@ public class NewRequirementWorkflowImpl implements NewRequirementWorkflow {
             // 等待用户回答（Temporal Signal）
             Workflow.await(() -> this.userAnswers != null);
 
-            // 合并答案，继续澄清
-            clarification = activities.clarifyWithAnswers(clarification, this.userAnswers);
+            // 合并答案，再次调度外部 Agent
+            clarification = activities.dispatchToAgent(
+                "requirement_clarification",
+                new ClarificationInput(clarification, this.userAnswers));
             this.userAnswers = null;
         }
 
-        // 4. 需求拆解
-        DecompositionResult decomposition = activities.decomposeRequirement(clarification);
+        // 4. 需求拆解（调度到外部 Agent）
+        DecompositionResult decomposition = activities.dispatchToAgent(
+            "requirement_decomposition", clarification);
 
-        // 5. 并行执行: PRD 生成 + 流程设计
+        // 5. 并行调度外部 Agent: PRD 生成 + 流程设计
         Promise<PrdResult> prdPromise = Async.function(
-            activities::generatePrd, decomposition);
+            () -> activities.dispatchToAgent("prd_generation", decomposition));
         Promise<FlowResult> flowPromise = Async.function(
-            activities::designFlow, decomposition);
+            () -> activities.dispatchToAgent("flow_design", decomposition));
 
         PrdResult prd = prdPromise.get();
         FlowResult flow = flowPromise.get();
 
-        // 6. DSL 同步
-        DslResult dsl = activities.synchronizeDsl(prd, flow);
+        // 6. DSL 合并验证（平台内部能力）
+        DslResult dsl = activities.mergeDsl(prd, flow);
 
-        // 7. 需求评审
-        ReviewResult review = activities.reviewRequirement(dsl);
+        // 7. 需求评审（调度到外部 Agent）
+        ReviewResult review = activities.dispatchToAgent(
+            "requirement_review", dsl);
 
         return new WorkflowResult(dsl, review);
     }
 }
 ```
+
+> **注意**：所有 `dispatchToAgent()` 调用都是通过 Agent Gateway 调度到外部 Agent。平台内部只执行 `parseInput()`（文件预处理）和 `mergeDsl()`（DSL 合并验证）等基础能力。
 
 ### 2.2 局部修改工作流（S7）
 
@@ -335,7 +343,7 @@ Workflow: RequirementIterationWorkflow
 | `agent.execution.started` | Agent 执行开始 | Agent Gateway | 监控服务 |
 | `agent.execution.completed` | Agent 执行完成 | Agent Gateway | 调度器、任务管理 |
 | `agent.callback` | Agent 异步回调 | Agent | Agent Gateway |
-| `dsl.changed` | DSL 变更事件 | DSL 管理服务 | 同步 Agent、审计服务 |
+| `dsl.changed` | DSL 变更事件 | DSL 管理服务 | 关联 Agent、审计服务 |
 | `command.submitted` | 指令提交事件 | 指令队列服务 | 调度器 |
 | `question.created` | 问题创建事件 | Agent | SSE 推送服务 |
 | `question.answered` | 问题回答事件 | 用户服务 | Agent Gateway |

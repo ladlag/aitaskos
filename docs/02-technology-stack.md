@@ -14,7 +14,7 @@
 | **状态管理** | Pinia | 2.x | MIT | 前端状态管理 |
 | **后端框架** | Spring Boot | 3.2+ | Apache 2.0 | 后端主框架 |
 | **API 网关** | Apache APISIX | 3.x | Apache 2.0 | API 路由、限流、认证 |
-| **Agent 框架** | LangChain4j | 0.35+ | Apache 2.0 | Java Agent 构建框架 |
+| **Agent 框架** | LangChain4j | 0.35+ | Apache 2.0 | 自建 Agent 可选框架（独立于平台） |
 | **工作流引擎** | Temporal | 1.x | MIT | 长流程编排 |
 | **AI 工作流** | Dify | 0.8+ | Apache 2.0 | 低代码 AI 工作流 |
 | **模型网关** | LiteLLM | 1.x | MIT | 多模型统一接入 |
@@ -77,25 +77,28 @@ Spring Boot 3.2+ (JDK 17+)
 ### 2.3 Agent 层
 
 ```
-Agent 执行层
-├── 内置 Agent (LangChain4j)
-│   ├── 需求理解 Agent
-│   ├── 需求澄清 Agent
-│   ├── 需求拆解 Agent
+Agent 接入层（所有 Agent 均为外部独立服务）
+├── Dify Agent (可视化 AI 工作流编排)
+│   ├── BA 需求分析 Agent
 │   ├── PRD 生成 Agent
 │   ├── 流程设计 Agent
-│   ├── 原型解析 Agent
-│   ├── 存量系统分析 Agent
-│   ├── 需求评审 Agent
-│   └── 同步 Agent
-├── Dify Agent (低代码工作流)
-└── 外部 Agent (标准协议接入)
+│   └── 自定义工作流 Agent
+├── 自建 Agent (标准协议接入)
+│   └── 任何遵循平台标准协议的 Agent
+└── 第三方 Agent (适配器接入)
+    └── 外部 AI 服务
+
+平台内部能力（非 Agent，平台基础服务）
+├── 文件预处理 (Apache Tika + PaddleOCR)
+├── DSL 合并验证
+├── 输入/输出格式转换
+└── 任务路由与健康检查
 ```
 
 **选型理由**：
-- LangChain4j 是 Java 生态最成熟的 Agent 框架，与 Spring Boot 无缝集成
-- Dify 提供可视化 AI 工作流编排，适合快速迭代 Agent 逻辑
-- 支持外部 Agent 通过标准协议接入，保证扩展性
+- Dify 提供可视化 AI 工作流编排，用户可快速创建和迭代业务 Agent
+- 平台不耦合任何业务 Agent，只提供标准协议接入能力
+- LangChain4j 可用于自建 Agent（独立于平台部署），但不是平台依赖
 
 ### 2.4 AI 模型层
 

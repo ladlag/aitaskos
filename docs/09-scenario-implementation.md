@@ -4,16 +4,18 @@
 
 ### 1.1 场景总览
 
-| 编号 | 场景 | 阶段 | 优先级 | 涉及 Agent | 涉及工作流 |
+| 编号 | 场景 | 阶段 | 优先级 | 涉及 Agent（全部外部） | 涉及工作流 |
 |------|------|------|--------|-----------|-----------|
-| S1 | 新需求生成 | Phase 1 | P0 | 需求理解、澄清、拆解、PRD生成、流程设计、评审、同步 | NewRequirementWorkflow |
-| S2 | 原型驱动需求 | Phase 2 | P1 | 原型解析、PRD生成、同步 | PrototypeDrivenWorkflow |
-| S3 | HTML/系统反推需求 | Phase 3 | P2 | 原型解析、PRD生成、同步 | PrototypeDrivenWorkflow |
-| S4 | 流程图驱动需求 | Phase 3 | P2 | 流程设计、PRD生成、同步 | FlowDrivenWorkflow |
+| S1 | 新需求生成 | Phase 1 | P0 | 需求理解、澄清、拆解、PRD生成、流程设计、评审 | NewRequirementWorkflow |
+| S2 | 原型驱动需求 | Phase 2 | P1 | 原型解析、PRD生成 | PrototypeDrivenWorkflow |
+| S3 | HTML/系统反推需求 | Phase 3 | P2 | 原型解析、PRD生成 | PrototypeDrivenWorkflow |
+| S4 | 流程图驱动需求 | Phase 3 | P2 | 流程设计、PRD生成 | FlowDrivenWorkflow |
 | S5 | 存量系统升级需求 | Phase 4 | P2 | 存量系统分析、PRD生成、评审 | LegacyUpgradeWorkflow |
-| S6 | 需求迭代 | Phase 2 | P1 | 需求理解、拆解、PRD生成、同步 | RequirementIterationWorkflow |
-| S7 | 局部修改 | Phase 1 | P0 | 同步 Agent + 对应领域 Agent | CommandExecutionWorkflow |
+| S6 | 需求迭代 | Phase 2 | P1 | 需求理解、拆解、PRD生成 | RequirementIterationWorkflow |
+| S7 | 局部修改 | Phase 1 | P0 | 对应领域 Agent | CommandExecutionWorkflow |
 | S8 | 需求评审与优化 | Phase 1 | P0 | 需求评审 | ReviewWorkflow |
+
+> **注意**：上表中所有 Agent 均为外部独立服务，平台负责通过工作流编排调度它们。
 
 ### 1.2 场景设计原则
 
@@ -401,11 +403,12 @@ Week 3-4: 核心数据层
 ├── 指令队列实现 (Redis Streams)
 └── API 基础框架
 
-Week 5-6: Agent 框架
+Week 5-6: Agent Gateway 与数字员工
 ├── Agent Gateway 实现
-├── LangChain4j 集成
-├── 需求理解 Agent
-├── 需求拆解 Agent
+├── 标准协议适配器（Dify / HTTP REST）
+├── Agent 注册与健康检查
+├── 数字员工管理 CRUD
+├── 数字员工 ↔ Agent 绑定
 └── Temporal 工作流集成
 
 Week 7-8: 前端交互

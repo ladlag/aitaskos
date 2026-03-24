@@ -393,6 +393,7 @@ CREATE TABLE tasks (
     id              BIGSERIAL PRIMARY KEY,
     project_id      BIGINT REFERENCES projects(id),
     iteration_id    BIGINT REFERENCES iterations(id),
+    employee_id     BIGINT REFERENCES digital_employees(id),  -- 分配给的数字员工
     parent_task_id  BIGINT REFERENCES tasks(id),       -- 父任务（Task Graph）
     title           VARCHAR(500) NOT NULL,
     description     TEXT,
@@ -400,9 +401,10 @@ CREATE TABLE tasks (
     status          VARCHAR(20) DEFAULT 'pending',      -- pending/running/completed/failed/cancelled
     priority        VARCHAR(10) DEFAULT 'normal',       -- high/normal/low
     execution_mode  VARCHAR(10) DEFAULT 'ASYNC',        -- SYNC/ASYNC
-    agent_selector  JSONB,                              -- Agent 选择策略
+    employee_selector JSONB,                            -- 数字员工选择策略 {type: AUTO/MANUAL, employee_id}
     input_data      JSONB,                              -- 任务输入
     output_data     JSONB,                              -- 任务输出
+    quality_score   INTEGER,                            -- 用户质量评分 0-100
     created_by      BIGINT REFERENCES users(id),
     started_at      TIMESTAMP,
     completed_at    TIMESTAMP,
@@ -449,7 +451,54 @@ CREATE INDEX idx_cmd_status ON command_queue(status);
 CREATE INDEX idx_cmd_priority ON command_queue(priority);
 
 -- ============================================================
--- Agent 管理
+-- 数字员工管理
+-- ============================================================
+
+CREATE TABLE digital_employees (
+    id              BIGSERIAL PRIMARY KEY,
+    tenant_id       BIGINT REFERENCES tenants(id),
+    name            VARCHAR(200) NOT NULL,
+    role            VARCHAR(50) NOT NULL,               -- business_analyst/developer/tester/devops/custom
+    description     TEXT,
+    avatar_url      VARCHAR(500),
+    status          VARCHAR(20) DEFAULT 'active',       -- active/inactive/suspended
+    knowledge_scope JSONB,                              -- 关联的知识库范围
+    config          JSONB,                              -- 工作参数（超时、重试等）
+    performance     JSONB,                              -- 绩效统计快照
+    created_by      BIGINT REFERENCES users(id),
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_emp_tenant ON digital_employees(tenant_id);
+CREATE INDEX idx_emp_role ON digital_employees(role);
+CREATE INDEX idx_emp_status ON digital_employees(status);
+
+-- 数字员工 ↔ Agent 绑定关系
+CREATE TABLE employee_agent_bindings (
+    id              BIGSERIAL PRIMARY KEY,
+    employee_id     BIGINT REFERENCES digital_employees(id),
+    agent_id        BIGINT REFERENCES agents(id),
+    capability      VARCHAR(100) NOT NULL,              -- 该绑定覆盖的能力
+    priority        INTEGER DEFAULT 1,                   -- 优先级（同能力多个 Agent 时）
+    status          VARCHAR(20) DEFAULT 'active',
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_binding_emp ON employee_agent_bindings(employee_id);
+CREATE INDEX idx_binding_agent ON employee_agent_bindings(agent_id);
+
+-- 数字员工 ↔ 工作流模板关联
+CREATE TABLE employee_workflow_templates (
+    id              BIGSERIAL PRIMARY KEY,
+    employee_id     BIGINT REFERENCES digital_employees(id),
+    workflow_code   VARCHAR(100) NOT NULL,              -- 工作流模板代码
+    config          JSONB,                              -- 工作流参数覆盖
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- Agent 管理（全部为外部 Agent）
 -- ============================================================
 
 CREATE TABLE agents (
@@ -457,9 +506,11 @@ CREATE TABLE agents (
     agent_code      VARCHAR(100) UNIQUE NOT NULL,
     name            VARCHAR(200) NOT NULL,
     description     TEXT,
-    agent_type      VARCHAR(50) NOT NULL,               -- internal/dify/external
-    endpoint_url    VARCHAR(500),                       -- 外部 Agent 地址
+    provider        VARCHAR(50) NOT NULL,               -- dify/self_built/third_party
+    endpoint_url    VARCHAR(500) NOT NULL,              -- Agent 服务地址
     capabilities    JSONB NOT NULL,                     -- 能力声明
+    input_schema    JSONB,                              -- 输入格式声明
+    output_schema   JSONB,                              -- 输出格式声明
     config          JSONB,                              -- 配置参数
     status          VARCHAR(20) DEFAULT 'active',       -- active/inactive/error
     health_status   VARCHAR(20) DEFAULT 'unknown',      -- healthy/unhealthy/unknown
@@ -608,32 +659,36 @@ CREATE TABLE uploaded_files (
 ┌──────────┐     ┌──────────┐     ┌──────────────┐
 │ tenants  │────▶│  users   │────▶│  projects    │
 └──────────┘     └──────────┘     └──────┬───────┘
-                                         │
-                      ┌──────────────────┼──────────────────┐
-                      ▼                  ▼                  ▼
-               ┌──────────┐     ┌──────────────┐   ┌──────────────┐
-               │iterations│     │conversations │   │uploaded_files│
-               └────┬─────┘     └──────┬───────┘   └──────────────┘
-                    │                  │
-          ┌────────┼────────┐         ▼
-          ▼        ▼        ▼   ┌──────────┐
-   ┌──────────┐ ┌─────┐ ┌──────│ messages │
-   │dsl_docs  │ │tasks│ │      └──────────┘
-   └────┬─────┘ └──┬──┘ │
-        │          │     │
-        ▼          ▼     ▼
- ┌────────────┐ ┌──────────────┐ ┌────────────────┐
- │dsl_changes │ │agent_exec    │ │clarif_questions│
- └────────────┘ └──────────────┘ └────────────────┘
-                       │
-                       ▼
-                ┌──────────┐
-                │  agents  │
-                └──────────┘
+                      │                  │
+                      ▼                  │
+              ┌──────────────┐           │
+              │digital_      │           │
+              │employees     │           │
+              └──────┬───────┘           │
+                     │                   │
+         ┌───────────┤         ┌─────────┼──────────────┐
+         ▼           ▼         ▼         ▼              ▼
+  ┌────────────┐ ┌────────┐ ┌──────┐ ┌──────────┐ ┌──────────┐
+  │emp_agent_  │ │emp_wf_ │ │tasks │ │iterations│ │uploaded_ │
+  │bindings    │ │templates│ │      │ │          │ │files     │
+  └──────┬─────┘ └────────┘ └──┬───┘ └────┬─────┘ └──────────┘
+         │                     │          │
+         ▼                     │    ┌─────┼──────────┐
+  ┌──────────┐                 │    ▼     ▼          ▼
+  │  agents  │                 │ ┌──────┐ ┌──────┐ ┌──────────┐
+  │(外部全部) │                 │ │dsl_  │ │conv_ │ │knowledge │
+  └──────────┘                 │ │docs  │ │ersations│ │_docs   │
+         ▲                     │ └──┬───┘ └──┬───┘ └──────────┘
+         │                     │    │        │
+         │          ┌──────────┘    ▼        ▼
+         │          ▼          ┌────────┐ ┌──────┐
+         │   ┌──────────────┐  │dsl_    │ │msgs  │
+         └───│agent_exec    │  │changes │ └──────┘
+             └──────────────┘  └────────┘
 
- ┌────────────────┐  ┌──────────────┐  ┌──────────────┐
- │knowledge_docs  │  │command_queue │  │ audit_logs   │
- └────────────────┘  └──────────────┘  └──────────────┘
+  ┌────────────────┐  ┌──────────────┐  ┌──────────────┐
+  │clarif_questions│  │command_queue │  │ audit_logs   │
+  └────────────────┘  └──────────────┘  └──────────────┘
 ```
 
 ## 3. 指令队列数据结构
