@@ -98,6 +98,9 @@ Platform ──调度──▶ External Agent ──回调──▶ Platform ─
 | [09-场景实现指南](docs/09-scenario-implementation.md) | 8 大场景实现细节、开发路线图 |
 | [10-技术趋势与优化建议](docs/10-technology-trends-and-optimization.md) | MCP/A2A 协议、Langfuse 可观测性、多 Agent 协作、评估管线 |
 | [11-微服务架构与服务划分](docs/11-microservice-architecture.md) | 11 个微服务划分、服务间通信、数据库拆分、API 路由、部署策略 |
+| [12-详细设计与迭代优化](docs/12-detailed-design.md) | 各微服务内部设计、DSL Patch 算法、Agent 协作模式、容错韧性、性能优化、安全设计 |
+| [13-任务拆分与排期](docs/13-task-breakdown.md) | Sprint 级任务拆解、4 阶段路线图、团队配置、风险登记、里程碑定义 |
+| [14-测试用例](docs/14-test-cases.md) | S1-S8 功能测试、集成测试、性能测试、安全测试、容错测试、验收标准 |
 
 ## 需求文档
 
