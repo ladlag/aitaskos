@@ -543,6 +543,35 @@ CREATE INDEX idx_exec_agent ON agent_executions(agent_id);
 CREATE INDEX idx_exec_status ON agent_executions(status);
 
 -- ============================================================
+-- Agent Skill 注册（兼容 OpenClaw/AgentSkills 标准）
+-- ============================================================
+
+CREATE TABLE agent_skills (
+    id              BIGSERIAL PRIMARY KEY,
+    agent_id        BIGINT REFERENCES agents(id),
+    name            VARCHAR(64) NOT NULL,               -- OpenClaw 标准: 小写+连字符, ^[a-z0-9]+(-[a-z0-9]+)*$
+    description     VARCHAR(1024) NOT NULL,             -- OpenClaw 标准: 1-1024 字符
+    version         VARCHAR(20),                        -- SemVer 格式
+    author          VARCHAR(200),
+    license         VARCHAR(50),                        -- SPDX 格式
+    tags            JSONB,                              -- 标签数组
+    compatibility   VARCHAR(500),
+    metadata        JSONB,                              -- 扩展元数据（含 aitaskos 专属字段）
+    input_schema    JSONB,                              -- JSON Schema（平台扩展）
+    output_schema   JSONB,                              -- JSON Schema（平台扩展）
+    skill_source    VARCHAR(20) DEFAULT 'manual',       -- manual/openclaw/a2a/scan
+    source_url      VARCHAR(500),                       -- 原始 SKILL.md 地址
+    status          VARCHAR(20) DEFAULT 'active',       -- active/inactive
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(agent_id, name)
+);
+
+CREATE INDEX idx_skill_agent ON agent_skills(agent_id);
+CREATE INDEX idx_skill_name ON agent_skills(name);
+CREATE INDEX idx_skill_tags ON agent_skills USING GIN(tags);
+
+-- ============================================================
 -- Agent 输出评估记录
 -- ============================================================
 

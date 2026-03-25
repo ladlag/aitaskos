@@ -201,7 +201,228 @@
 | | dsl_synchronization | DSL 同步 |
 | | impact_analysis | 影响分析 |
 
-### 3.3 BA Agent 参考实现（Dify 示例）
+### 3.3 Skill 协议标准化（兼容 OpenClaw/AgentSkills）
+
+平台的 Skill（能力/技能）定义采用标准化协议，**兼容 OpenClaw 的 Skill 格式和 AgentSkills 开放标准**，确保社区 Skill 可以直接接入平台使用。
+
+#### 3.3.1 Skill 定义标准
+
+每个 Skill 遵循 AgentSkills 规范的 YAML+Markdown 格式（`SKILL.md`），平台同时支持 JSON 等价表示：
+
+**SKILL.md 格式（OpenClaw 兼容）**：
+
+```yaml
+---
+name: requirement-analysis
+description: >-
+  分析用户输入，提取核心需求，生成需求摘要和功能列表。
+  当用户提交新的需求描述、需求文档、或说"分析这个需求"时触发。
+version: 1.0.0
+author: aitaskos-community
+license: Apache-2.0
+tags:
+  - requirement
+  - analysis
+  - ba
+compatibility: "需要 LLM 模型支持"
+metadata:
+  aitaskos:
+    capability: requirement_analysis
+    category: requirement
+    input_modes:
+      - text
+      - file
+    output_modes:
+      - application/json
+    estimated_duration_seconds: 120
+    idempotent: true
+---
+# 需求分析 Skill
+
+## 职责
+分析用户提供的原始需求描述，提取核心需求，生成结构化的需求摘要。
+
+## 输入
+- `raw_input`: 用户原始需求描述（必需）
+- `documents`: 关联文档列表（可选）
+
+## 输出
+- `summary`: 需求摘要
+- `features`: 功能列表
+- `stakeholders`: 干系人
+- `constraints`: 约束条件
+
+## 执行说明
+1. 首先理解用户的核心诉求
+2. 提取关键业务实体和流程
+3. 识别功能需求和非功能需求
+4. 输出结构化 JSON
+```
+
+**JSON 等价表示（平台 API 注册格式）**：
+
+```json
+{
+  "name": "requirement-analysis",
+  "description": "分析用户输入，提取核心需求，生成需求摘要和功能列表。当用户提交新的需求描述、需求文档、或说\"分析这个需求\"时触发。",
+  "version": "1.0.0",
+  "author": "aitaskos-community",
+  "license": "Apache-2.0",
+  "tags": ["requirement", "analysis", "ba"],
+  "compatibility": "需要 LLM 模型支持",
+  "metadata": {
+    "aitaskos": {
+      "capability": "requirement_analysis",
+      "category": "requirement",
+      "input_modes": ["text", "file"],
+      "output_modes": ["application/json"],
+      "estimated_duration_seconds": 120,
+      "idempotent": true
+    }
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "raw_input": { "type": "string", "description": "用户原始输入" },
+      "documents": { "type": "array", "items": { "type": "string" } }
+    },
+    "required": ["raw_input"]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "summary": { "type": "string" },
+      "features": { "type": "array" },
+      "stakeholders": { "type": "array" },
+      "constraints": { "type": "array" }
+    }
+  }
+}
+```
+
+#### 3.3.2 字段规范（对齐 AgentSkills 标准）
+
+| 字段 | 类型 | 必填 | 规范 | 说明 |
+|------|------|------|------|------|
+| `name` | string | ✅ | 小写字母+连字符，1-64 字符，`^[a-z0-9]+(-[a-z0-9]+)*$` | Skill 唯一标识 |
+| `description` | string | ✅ | 1-1024 字符，包含触发关键词 | 描述 Skill 功能和触发条件 |
+| `version` | string | 否 | SemVer 格式 | 版本号 |
+| `author` | string | 否 | — | 作者 |
+| `license` | string | 否 | SPDX 格式 | 许可证 |
+| `tags` | string[] | 否 | — | 分类标签 |
+| `compatibility` | string | 否 | ≤500 字符 | 运行环境要求 |
+| `metadata` | object | 否 | 自由扩展 | 平台专属扩展字段 |
+| `input_schema` | object | 否 | JSON Schema | 输入格式定义（平台扩展） |
+| `output_schema` | object | 否 | JSON Schema | 输出格式定义（平台扩展） |
+
+> **兼容性保证**：任何符合 OpenClaw SKILL.md 标准的 Skill 文件，都可以直接导入到 AiTaskOS 平台使用。平台通过 YAML frontmatter 解析器自动提取元数据。
+
+#### 3.3.3 Skill 注册流程
+
+```
+Skill 注册方式:
+
+方式 1: SKILL.md 文件导入（OpenClaw 兼容）
+  上传 SKILL.md → 平台解析 YAML frontmatter → 注册为 Skill
+  └── 支持从 ClawHub 批量导入社区 Skill
+
+方式 2: JSON API 注册
+  POST /api/v1/agents/{id}/skills → 使用 JSON 等价格式注册
+
+方式 3: A2A Agent Card 自动发现
+  读取 Agent Card 中的 skills 数组 → 自动注册
+  └── 平台将 A2A skills 字段映射为标准 Skill 格式
+
+方式 4: 目录扫描（自建 Agent）
+  Agent 提供 /skills 端点 → 平台主动拉取 Skill 清单
+```
+
+#### 3.3.4 Skill 与 Agent 的关系
+
+```
+Agent 与 Skill 的关系:
+
+一个 Agent 可以拥有多个 Skill:
+  Agent "BA 全能助手"
+  ├── Skill: requirement-analysis    (需求分析)
+  ├── Skill: prd-generation          (PRD 生成)
+  └── Skill: flow-design             (流程设计)
+
+一个 Skill 可以被多个 Agent 实现:
+  Skill "requirement-analysis"
+  ├── Agent: dify_ba_v1    (Dify 实现)
+  ├── Agent: custom_ba_v2  (自建实现)
+  └── Agent: third_party_ba (第三方实现)
+
+平台调度时:
+  Task (task_type=requirement_analysis)
+  → 匹配数字员工 (Employee) 
+  → 查找 Agent Binding (capability=requirement_analysis)
+  → 找到 Agent → 验证 Agent 拥有对应 Skill
+  → 调度执行
+```
+
+#### 3.3.5 Skill 数据模型
+
+```sql
+-- Skill 注册表（兼容 OpenClaw/AgentSkills 标准）
+CREATE TABLE agent_skills (
+    id              BIGSERIAL PRIMARY KEY,
+    agent_id        BIGINT REFERENCES agents(id),
+    name            VARCHAR(64) NOT NULL,               -- OpenClaw 标准: 小写+连字符
+    description     VARCHAR(1024) NOT NULL,             -- OpenClaw 标准: 1-1024 字符
+    version         VARCHAR(20),                        -- SemVer
+    author          VARCHAR(200),
+    license         VARCHAR(50),                        -- SPDX 格式
+    tags            JSONB,                              -- 标签数组
+    compatibility   VARCHAR(500),
+    metadata        JSONB,                              -- 扩展元数据（含 aitaskos 专属字段）
+    input_schema    JSONB,                              -- JSON Schema
+    output_schema   JSONB,                              -- JSON Schema
+    skill_source    VARCHAR(20) DEFAULT 'manual',       -- manual/openclaw/a2a/scan
+    source_url      VARCHAR(500),                       -- 原始 SKILL.md 地址
+    status          VARCHAR(20) DEFAULT 'active',       -- active/inactive
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(agent_id, name)
+);
+
+CREATE INDEX idx_skill_agent ON agent_skills(agent_id);
+CREATE INDEX idx_skill_name ON agent_skills(name);
+CREATE INDEX idx_skill_tags ON agent_skills USING GIN(tags);
+```
+
+#### 3.3.6 与 A2A Agent Card 的映射
+
+A2A Agent Card 的 `skills` 字段可以直接映射到平台 Skill 模型：
+
+```
+A2A Agent Card skills          →    平台 agent_skills 表
+─────────────────────────────────────────────────────────
+skills[].id                    →    name
+skills[].name                  →    description (前 64 字符)
+skills[].description           →    description
+skills[].tags                  →    tags
+skills[].examples              →    metadata.examples
+```
+
+OpenClaw SKILL.md 字段映射：
+
+```
+OpenClaw SKILL.md              →    平台 agent_skills 表
+─────────────────────────────────────────────────────────
+name                           →    name
+description                    →    description
+version                        →    version
+author                         →    author
+license                        →    license
+tags                           →    tags
+compatibility                  →    compatibility
+metadata                       →    metadata
+(Markdown body)                →    metadata.instructions
+```
+
+### 3.4 BA Agent 参考实现（Dify 示例）
 
 以下是使用 Dify 创建 BA Agent 的参考设计，这些 Agent 独立于平台运行：
 
@@ -317,7 +538,7 @@ AiTaskOS MCP Server
 
 ### 4.4 A2A Agent Card 兼容
 
-外部 Agent 可通过 A2A Agent Card 标准注册到平台：
+外部 Agent 可通过 A2A Agent Card 标准注册到平台。平台自动将 A2A `skills` 字段解析为标准 Skill 模型（兼容 OpenClaw 格式）：
 
 ```json
 {
@@ -337,14 +558,24 @@ AiTaskOS MCP Server
   "defaultOutputModes": ["text", "application/json"],
   "skills": [
     {
-      "id": "requirement_analysis",
+      "id": "requirement-analysis",
       "name": "需求分析",
-      "description": "分析用户输入，提取核心需求",
-      "tags": ["requirement", "analysis", "ba"]
+      "description": "分析用户输入，提取核心需求。当用户提交新的需求描述或说\"分析这个需求\"时触发。",
+      "tags": ["requirement", "analysis", "ba"],
+      "examples": ["分析这份需求文档", "做一个订单管理系统"]
+    },
+    {
+      "id": "prd-generation",
+      "name": "PRD 生成",
+      "description": "根据需求分析结果生成完整的产品需求文档。当需要生成 PRD 或产品文档时触发。",
+      "tags": ["prd", "generation", "document"],
+      "examples": ["生成 PRD 文档", "输出产品需求规格"]
     }
   ]
 }
 ```
+
+> A2A `skills` 中的每个条目会自动注册为平台 `agent_skills` 表中的记录，`id` 映射为 `name`（需满足 OpenClaw 命名规范：小写+连字符）。
 
 ### 4.5 回调机制
 

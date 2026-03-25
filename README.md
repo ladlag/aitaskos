@@ -97,6 +97,7 @@ Platform ──调度──▶ External Agent ──回调──▶ Platform ─
 | [08-部署与基础设施设计](docs/08-deployment-design.md) | Docker Compose、K8s 部署、监控告警、备份恢复 |
 | [09-场景实现指南](docs/09-scenario-implementation.md) | 8 大场景实现细节、开发路线图 |
 | [10-技术趋势与优化建议](docs/10-technology-trends-and-optimization.md) | MCP/A2A 协议、Langfuse 可观测性、多 Agent 协作、评估管线 |
+| [11-微服务架构与服务划分](docs/11-microservice-architecture.md) | 11 个微服务划分、服务间通信、数据库拆分、API 路由、部署策略 |
 
 ## 需求文档
 

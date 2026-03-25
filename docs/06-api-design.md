@@ -206,6 +206,15 @@ POST   /api/v1/agent/callback             Agent 执行回调
     "questions": []
   }
 
+-- Skill 管理（兼容 OpenClaw/AgentSkills 标准）
+GET    /api/v1/agents/{id}/skills          Agent 的 Skill 列表
+POST   /api/v1/agents/{id}/skills          注册 Skill（JSON 格式）
+POST   /api/v1/agents/{id}/skills/import   导入 SKILL.md（OpenClaw 格式）
+PUT    /api/v1/agents/{id}/skills/{skillId} 更新 Skill
+DELETE /api/v1/agents/{id}/skills/{skillId} 删除 Skill
+GET    /api/v1/skills                      全平台 Skill 搜索
+  Query: ?tags=requirement&name=requirement-analysis
+
 -- A2A 协议端点
 GET    /.well-known/agent.json             平台 Agent Card（A2A 标准发现端点）
 POST   /api/v1/a2a/tasks                  A2A 标准任务提交
