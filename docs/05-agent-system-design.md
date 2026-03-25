@@ -369,7 +369,7 @@ Agent 与 Skill 的关系:
 CREATE TABLE agent_skills (
     id              BIGSERIAL PRIMARY KEY,
     agent_id        BIGINT REFERENCES agents(id),
-    name            VARCHAR(64) NOT NULL,               -- OpenClaw 标准: 小写+连字符
+    name            VARCHAR(64) NOT NULL,               -- OpenClaw 标准: 小写+连字符, ^[a-z0-9]+(-[a-z0-9]+)*$
     description     VARCHAR(1024) NOT NULL,             -- OpenClaw 标准: 1-1024 字符
     version         VARCHAR(20),                        -- SemVer
     author          VARCHAR(200),
@@ -384,7 +384,8 @@ CREATE TABLE agent_skills (
     status          VARCHAR(20) DEFAULT 'active',       -- active/inactive
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(agent_id, name)
+    UNIQUE(agent_id, name),
+    CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$')          -- OpenClaw 命名规范约束
 );
 
 CREATE INDEX idx_skill_agent ON agent_skills(agent_id);
@@ -399,8 +400,8 @@ A2A Agent Card 的 `skills` 字段可以直接映射到平台 Skill 模型：
 ```
 A2A Agent Card skills          →    平台 agent_skills 表
 ─────────────────────────────────────────────────────────
-skills[].id                    →    name
-skills[].name                  →    description (前 64 字符)
+skills[].id                    →    name（需符合 OpenClaw 命名规范）
+skills[].name                  →    metadata.display_name
 skills[].description           →    description
 skills[].tags                  →    tags
 skills[].examples              →    metadata.examples

@@ -800,11 +800,14 @@ routes:
 ```
 启动顺序（按依赖关系）:
 
-阶段 1: 基础设施
-  PostgreSQL → Redis → Kafka → Milvus → MinIO → Temporal
+阶段 1: 基础设施（数据存储与消息）
+  PostgreSQL → Redis → Kafka → Milvus → MinIO
 
-阶段 2: 认证与监控
-  Keycloak → Langfuse → Jaeger → Prometheus → Grafana
+阶段 2: 基础设施（编排与认证）
+  Temporal Server（依赖 PostgreSQL）→ Keycloak
+
+阶段 3: 监控与可观测
+  Langfuse → Jaeger → Prometheus → Grafana
 
 阶段 3: 核心服务
   project-service → employee-service → task-service → dsl-service

@@ -564,7 +564,8 @@ CREATE TABLE agent_skills (
     status          VARCHAR(20) DEFAULT 'active',       -- active/inactive
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(agent_id, name)
+    UNIQUE(agent_id, name),
+    CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$')          -- OpenClaw 命名规范约束
 );
 
 CREATE INDEX idx_skill_agent ON agent_skills(agent_id);
