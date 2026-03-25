@@ -493,6 +493,8 @@ CREATE TABLE employee_workflow_templates (
     id              BIGSERIAL PRIMARY KEY,
     employee_id     BIGINT REFERENCES digital_employees(id),
     workflow_code   VARCHAR(100) NOT NULL,              -- 工作流模板代码
+    collaboration_mode VARCHAR(20) DEFAULT 'chain',     -- chain/fanout/voting/delegation
+    collaboration_config JSONB,                         -- 协作配置详情
     config          JSONB,                              -- 工作流参数覆盖
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -539,6 +541,23 @@ CREATE TABLE agent_executions (
 CREATE INDEX idx_exec_task ON agent_executions(task_id);
 CREATE INDEX idx_exec_agent ON agent_executions(agent_id);
 CREATE INDEX idx_exec_status ON agent_executions(status);
+
+-- ============================================================
+-- Agent 输出评估记录
+-- ============================================================
+
+CREATE TABLE agent_evaluation_records (
+    id              BIGSERIAL PRIMARY KEY,
+    execution_id    BIGINT REFERENCES agent_executions(id),
+    evaluation_type VARCHAR(50) NOT NULL,                -- schema_validation/semantic/consistency/user_feedback
+    score           DECIMAL(5,2),                        -- 0.00-100.00
+    details         JSONB,                               -- 评估详情
+    evaluated_by    VARCHAR(50),                         -- auto/llm_judge/user
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_eval_execution ON agent_evaluation_records(execution_id);
+CREATE INDEX idx_eval_type ON agent_evaluation_records(evaluation_type);
 
 -- ============================================================
 -- 异步反馈（AI 提问）

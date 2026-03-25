@@ -82,6 +82,7 @@
 | temporal-server | 1 | 2C / 4G | 工作流引擎 |
 | temporal-worker | 2 | 2C / 4G | 工作流 Worker |
 | dify | 1 | 2C / 4G | AI 工作流平台 |
+| langfuse | 1 | 1C / 2G | AI Agent 可观测性 |
 | litellm | 1 | 1C / 2G | 模型网关 |
 | keycloak | 1 | 1C / 2G | 认证服务 |
 | paddleocr | 1 | 2C / 4G | OCR 服务 |
@@ -256,6 +257,18 @@ services:
     image: langgenius/dify-api:latest
     ports:
       - "5001:5001"
+
+  langfuse:
+    image: langfuse/langfuse:latest
+    ports:
+      - "3002:3000"
+    environment:
+      DATABASE_URL: postgresql://aitaskos:aitaskos_dev@postgresql:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3002
+      NEXTAUTH_SECRET: langfuse_dev_secret
+      SALT: langfuse_dev_salt
+    depends_on:
+      - postgresql
 
   # ============ 监控 ============
   prometheus:

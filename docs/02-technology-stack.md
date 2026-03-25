@@ -15,6 +15,8 @@
 | **后端框架** | Spring Boot | 3.2+ | Apache 2.0 | 后端主框架 |
 | **API 网关** | Apache APISIX | 3.x | Apache 2.0 | API 路由、限流、认证 |
 | **Agent 框架** | LangChain4j | 0.35+ | Apache 2.0 | 自建 Agent 可选框架（独立于平台） |
+| **Agent 可观测** | Langfuse | 3.x | MIT | AI Agent 推理追踪、成本统计、质量评估 |
+| **遥测标准** | OpenTelemetry | 最新 | Apache 2.0 | 统一遥测数据采集标准 |
 | **工作流引擎** | Temporal | 1.x | MIT | 长流程编排 |
 | **AI 工作流** | Dify | 0.8+ | Apache 2.0 | 低代码 AI 工作流 |
 | **模型网关** | LiteLLM | 1.x | MIT | 多模型统一接入 |
@@ -88,6 +90,19 @@ Agent 接入层（所有 Agent 均为外部独立服务）
 └── 第三方 Agent (适配器接入)
     └── 外部 AI 服务
 
+协议支持层
+├── A2A Protocol (Agent-to-Agent, Google/Linux Foundation 开放标准)
+│   ├── Agent Card 注册与发现
+│   ├── Task Model 标准状态流转
+│   └── SSE 推送与多模态消息
+├── MCP Protocol (Model Context Protocol, Anthropic/Linux Foundation 开放标准)
+│   ├── 平台 MCP Server（暴露 DSL/知识库/文件工具给 Agent）
+│   └── 标准化工具发现与调用
+└── 自定义协议（向后兼容）
+    ├── HTTP REST 回调
+    ├── Dify API 适配
+    └── gRPC 适配
+
 平台内部能力（非 Agent，平台基础服务）
 ├── 文件预处理 (Apache Tika + PaddleOCR)
 ├── DSL 合并验证
@@ -98,6 +113,7 @@ Agent 接入层（所有 Agent 均为外部独立服务）
 **选型理由**：
 - Dify 提供可视化 AI 工作流编排，用户可快速创建和迭代业务 Agent
 - 平台不耦合任何业务 Agent，只提供标准协议接入能力
+- 兼容 A2A 和 MCP 两大行业标准协议，降低 Agent 接入门槛，实现跨平台互操作
 - LangChain4j 可用于自建 Agent（独立于平台部署），但不是平台依赖
 
 ### 2.4 AI 模型层
@@ -184,6 +200,8 @@ Agent 接入层（所有 Agent 均为外部独立服务）
 | Grafana | AGPL-3.0 | ✅ | ⚠️ | 仅用于监控，不修改源码 |
 | Keycloak | Apache 2.0 | ✅ | ✅ | 无限制 |
 | PaddleOCR | Apache 2.0 | ✅ | ✅ | 无限制 |
+| Langfuse | MIT | ✅ | ✅ | 无限制，自部署 |
+| OpenTelemetry | Apache 2.0 | ✅ | ✅ | 无限制 |
 | DeepSeek | MIT (模型权重) | ✅ | ✅ | 无限制 |
 
 > **注意**：Redis 7.4+ 版本更改了许可证。建议使用 Redis 7.2（BSD-3）或 Valkey（BSD-3，Redis 兼容分支）。

@@ -205,6 +205,18 @@ POST   /api/v1/agent/callback             Agent 执行回调
     "partial_output": {},
     "questions": []
   }
+
+-- A2A 协议端点
+GET    /.well-known/agent.json             平台 Agent Card（A2A 标准发现端点）
+POST   /api/v1/a2a/tasks                  A2A 标准任务提交
+GET    /api/v1/a2a/tasks/{id}             A2A 任务状态查询
+GET    /api/v1/a2a/tasks/{id}/stream      A2A SSE 推送
+
+-- MCP 协议端点（平台 MCP Server）
+GET    /api/v1/mcp/capabilities            MCP 能力发现
+POST   /api/v1/mcp/tools/{toolName}        MCP 工具调用
+GET    /api/v1/mcp/resources               MCP 资源列表
+GET    /api/v1/mcp/resources/{resourceId}   MCP 资源读取
 ```
 
 ### 3.9 知识库 API

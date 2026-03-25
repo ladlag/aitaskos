@@ -238,18 +238,29 @@ Dify 工作流示例: BA PRD 生成 Agent
 │  ┌────────────┐  ┌────────────┐            │
 │  │ 协议适配器  │  │ 路由管理器  │            │
 │  │            │  │            │            │
-│  │ ·Dify API  │  │ ·Agent注册  │            │
-│  │ ·HTTP REST │  │ ·能力匹配   │            │
-│  │ ·gRPC      │  │ ·负载均衡   │            │
+│  │ ·A2A 协议  │  │ ·Agent注册  │            │
+│  │ ·Dify API  │  │ ·能力匹配   │            │
+│  │ ·HTTP REST │  │ ·负载均衡   │            │
+│  │ ·gRPC      │  │            │            │
 │  │ ·WebSocket │  │            │            │
 │  └────────────┘  └────────────┘            │
 │                                             │
 │  ┌────────────┐  ┌────────────┐            │
-│  │ 回调管理器  │  │ 流式转发器  │            │
+│  │ MCP Server │  │ 回调管理器  │            │
+│  │(平台工具)   │  │            │            │
+│  │            │  │ ·结果接收   │            │
+│  │ ·DSL 读写  │  │ ·状态更新   │            │
+│  │ ·知识检索  │  │ ·事件发布   │            │
+│  │ ·任务上下文│  │            │            │
+│  │ ·文件解析  │  └────────────┘            │
+│  └────────────┘                            │
+│                                             │
+│  ┌────────────┐  ┌────────────┐            │
+│  │ 流式转发器  │  │ 可观测集成  │            │
 │  │            │  │            │            │
-│  │ ·结果接收   │  │ ·SSE 转发  │            │
-│  │ ·状态更新   │  │ ·日志流    │            │
-│  │ ·事件发布   │  │ ·进度推送  │            │
+│  │ ·SSE 转发  │  │ ·Langfuse  │            │
+│  │ ·日志流    │  │  Trace 上报 │            │
+│  │ ·进度推送  │  │ ·OTEL 遥测 │            │
 │  └────────────┘  └────────────┘            │
 │                                             │
 │  ┌────────────┐  ┌────────────┐            │
@@ -267,12 +278,75 @@ Dify 工作流示例: BA PRD 生成 Agent
 
 | Agent 来源 | 协议 | 适配方式 |
 |-----------|------|---------|
+| A2A Agent | A2A Protocol (HTTP + SSE) | 标准 A2A Agent Card 发现 + Task Model |
 | Dify Agent | Dify API (HTTP) | 转换为 Dify Workflow API 格式 |
+| MCP Agent | MCP Protocol | Agent 通过 MCP 调用平台工具 |
 | 自建 Agent | HTTP REST | 标准 JSON 协议 |
 | 自建 Agent | gRPC | Protocol Buffers 协议 |
 | 第三方 Agent | HTTP REST | 标准 JSON 协议 + 自定义适配器 |
 
-### 4.3 回调机制
+**协议选择策略**：
+```
+新接入 Agent → 推荐 A2A 协议（行业标准，跨平台互操作）
+Dify Agent  → Dify API 适配器（无缝集成）
+存量 Agent  → 自定义 HTTP REST（向后兼容）
+Agent 工具调用 → MCP 协议（Agent 访问平台 DSL/知识库/文件）
+```
+
+### 4.3 MCP Server（平台工具暴露）
+
+平台作为 MCP Server，将内部工具/资源暴露给外部 Agent 调用：
+
+```
+AiTaskOS MCP Server
+├── DSL 工具
+│   ├── read_dsl         ← Agent 读取当前 DSL 结构
+│   ├── patch_dsl        ← Agent 提交 DSL 修改补丁
+│   └── validate_dsl     ← Agent 验证 DSL 数据一致性
+├── 知识库工具
+│   ├── search_knowledge ← Agent 向量检索知识库
+│   └── get_document     ← Agent 获取文档内容
+├── 任务工具
+│   ├── get_task_context  ← Agent 获取任务上下文信息
+│   ├── submit_question   ← Agent 提交澄清问题
+│   └── report_progress   ← Agent 上报执行进度
+└── 文件工具
+    ├── parse_file        ← Agent 请求平台解析文件
+    └── download_artifact ← Agent 下载已生成的制品
+```
+
+### 4.4 A2A Agent Card 兼容
+
+外部 Agent 可通过 A2A Agent Card 标准注册到平台：
+
+```json
+{
+  "name": "BA 需求分析 Agent",
+  "description": "分析用户输入，提取核心需求，生成需求摘要和功能列表",
+  "url": "https://agent.example.com",
+  "version": "1.0.0",
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": true,
+    "stateTransitionHistory": true
+  },
+  "authentication": {
+    "schemes": ["oauth2", "apiKey"]
+  },
+  "defaultInputModes": ["text", "file"],
+  "defaultOutputModes": ["text", "application/json"],
+  "skills": [
+    {
+      "id": "requirement_analysis",
+      "name": "需求分析",
+      "description": "分析用户输入，提取核心需求",
+      "tags": ["requirement", "analysis", "ba"]
+    }
+  ]
+}
+```
+
+### 4.5 回调机制
 
 ```
 异步回调流程:
@@ -298,7 +372,7 @@ Platform ──请求──▶ External Agent
                         Platform 保存结果 → 更新 DSL → SSE 推送前端
 ```
 
-### 4.4 输入预处理（平台内部能力）
+### 4.6 输入预处理（平台内部能力）
 
 平台内部负责将用户输入预处理为 Agent 可消费的标准格式，这不是业务逻辑，而是平台基础能力：
 
@@ -312,7 +386,7 @@ Platform ──请求──▶ External Agent
 └── 所有结果 → 标准输入格式 → 发送给 Agent
 ```
 
-### 4.5 输出后处理（平台内部能力）
+### 4.7 输出后处理（平台内部能力）
 
 平台接收 Agent 输出后，负责：
 
@@ -409,4 +483,103 @@ Platform ──请求──▶ External Agent
 ├── 低绩效数字员工 → 自动降权或告警
 ├── Agent 频繁失败 → 建议更换 Agent
 └── 响应慢的 Agent → 调整超时策略
+```
+
+## 7. Agent 可观测性
+
+### 7.1 双层可观测架构
+
+```
+全链路观测:
+
+用户请求 → API Server → 调度器 → Agent Gateway → 外部 Agent
+    │           │          │           │             │
+    └───────────┴──────────┴───────────┴─────────────┘
+                         │
+              ┌──────────┴──────────┐
+              │  OpenTelemetry SDK  │
+              └──────────┬──────────┘
+                    │         │
+                    ▼         ▼
+              ┌─────────┐ ┌──────────┐
+              │ Jaeger  │ │ Langfuse │
+              │(基础设施)│ │(Agent/LLM)│
+              └─────────┘ └──────────┘
+                    │         │
+                    └────┬────┘
+                         ▼
+                   ┌──────────┐
+                   │ Grafana  │
+                   │(统一仪表盘)│
+                   └──────────┘
+```
+
+### 7.2 Langfuse 集成
+
+Agent Gateway 在每次 Agent 调用时，向 Langfuse 上报 Trace 数据：
+
+| 采集维度 | 说明 |
+|---------|------|
+| 推理链路 | Agent 每一步的输入/输出/决策过程 |
+| Token 用量 | 按 Agent/任务/数字员工统计 Token 消耗 |
+| 调用成本 | 按模型和 Token 数计算费用 |
+| 延迟分布 | 各步骤耗时分析 |
+| 质量评分 | 自动评估 + 用户反馈 |
+
+### 7.3 自动化评估管线
+
+```
+Agent 输出 → 自动评估管线
+├── 结构化验证
+│   ├── 输出是否符合 output_schema
+│   ├── DSL patch 是否有效
+│   └── 字段完整性检查
+├── 语义质量评估
+│   ├── LLM-as-Judge（用另一个 LLM 评估输出质量）
+│   ├── 与参考答案的相似度
+│   └── 幻觉检测
+├── 一致性检查
+│   ├── PRD 与 DSL 一致性
+│   ├── 流程与功能对应性
+│   └── 跨 Agent 输出一致性
+└── 用户反馈
+    ├── 显式评分（用户打分）
+    └── 隐式信号（用户修改次数、重试次数）
+```
+
+## 8. 多 Agent 协作模式
+
+### 8.1 协作模式定义
+
+数字员工绑定多个 Agent 时，可配置 Agent 间的协作模式：
+
+| 模式 | 说明 | 适用场景 |
+|------|------|---------|
+| **chain** | 串行链：Agent A → Agent B → Agent C | 需求理解 → 需求拆解 → PRD 生成 |
+| **fanout** | 并行扇出：同时调度多个 Agent | PRD 生成 + 流程设计 并行 |
+| **voting** | 投票共识：多个 Agent 独立执行，选最佳结果 | 多个评审 Agent 独立评审 |
+| **delegation** | 委托嵌套：Agent A 委托子任务给 Agent B | 需求分析中需要代码分析 |
+
+### 8.2 协作配置示例
+
+```json
+{
+  "employee_id": "emp_001",
+  "workflow_code": "wf_new_requirement",
+  "collaboration_mode": "chain",
+  "collaboration_config": {
+    "steps": [
+      {
+        "capability": "requirement_analysis",
+        "agent_id": "agent_ba_001"
+      },
+      {
+        "capability": "prd_generation",
+        "mode": "fanout",
+        "agents": ["agent_prd_001", "agent_prd_002"],
+        "merge_strategy": "best_score"
+      }
+    ]
+  }
+}
 ```

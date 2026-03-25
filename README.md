@@ -53,6 +53,7 @@ Platform ──调度──▶ External Agent ──回调──▶ Platform ─
 | 消息队列 | Apache Kafka | Apache 2.0 |
 | 文件存储 | MinIO | AGPL-3.0 |
 | 认证 | Keycloak | Apache 2.0 |
+| Agent 可观测 | Langfuse (自部署) | MIT |
 | AI 模型 | DeepSeek / Qwen（开源可商用） | MIT |
 
 > 所有组件均为开源、可免费商用。
@@ -71,7 +72,7 @@ Platform ──调度──▶ External Agent ──回调──▶ Platform ─
 ├────────────────────────────────────────────────────┤
 │      调度编排层 (Temporal + 指令队列)                 │
 ├────────────────────────────────────────────────────┤
-│      Agent 网关层 (标准协议 + 适配器)                 │
+│      Agent 网关层 (A2A + MCP + 自定义协议)              │
 ├────────────────────────────────────────────────────┤
 │   外部 Agent 执行层 (Dify / 自建 / 第三方)           │
 │   全部解耦，通过标准协议接入                           │
@@ -95,6 +96,7 @@ Platform ──调度──▶ External Agent ──回调──▶ Platform ─
 | [07-工作流与编排设计](docs/07-workflow-design.md) | Temporal 工作流、指令队列编排、事件驱动、并发控制 |
 | [08-部署与基础设施设计](docs/08-deployment-design.md) | Docker Compose、K8s 部署、监控告警、备份恢复 |
 | [09-场景实现指南](docs/09-scenario-implementation.md) | 8 大场景实现细节、开发路线图 |
+| [10-技术趋势与优化建议](docs/10-technology-trends-and-optimization.md) | MCP/A2A 协议、Langfuse 可观测性、多 Agent 协作、评估管线 |
 
 ## 需求文档
 
