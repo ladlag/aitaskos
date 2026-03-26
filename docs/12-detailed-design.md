@@ -845,7 +845,95 @@ Step 4: 用户反馈 (手动, 异步)
 默认权重: w1=0.2, w2=0.3, w3=0.3, w4=0.2
 ```
 
-#### 1.9.2 审计日志表分区
+#### 1.9.2 自动审查优化机制详细设计
+
+```java
+/**
+ * 自动审查优化 Activity 实现
+ *
+ * 核心逻辑:
+ *   1. 接收 Agent 输出
+ *   2. 运行评估管线（结构化验证 + 语义评估 + 一致性检查）
+ *   3. 综合评分 < 阈值 → 生成审查反馈
+ *   4. 审查反馈 + 原始输入 + 上轮输出 → 重新调度 Agent
+ *   5. 重复直到达标或达最大次数
+ */
+public class AutoReviewActivityImpl implements AutoReviewActivity {
+
+    @Override
+    public ReviewScore evaluateOutput(
+            String capability, Object output, Object originalInput,
+            List<String> dimensions) {
+
+        ReviewScore score = new ReviewScore();
+
+        // Step 1: 结构化验证（自动, <1s）
+        SchemaValidationResult schemaResult = schemaValidator.validate(
+            output, agentRegistry.getOutputSchema(capability));
+        score.setSchemaScore(schemaResult.getScore());
+
+        // Step 2: 语义质量评估（LLM-as-Judge, ~10s）
+        if (dimensions.contains("completeness") || dimensions.contains("clarity")) {
+            SemanticEvalResult semanticResult = llmJudge.evaluate(
+                output, originalInput, capability, dimensions);
+            score.setSemanticScore(semanticResult.getScore());
+            score.setIssues(semanticResult.getIssues());
+        }
+
+        // Step 3: 一致性检查（自动, ~2s）
+        if (dimensions.contains("consistency")) {
+            ConsistencyResult consistencyResult = consistencyChecker.check(
+                output, originalInput);
+            score.setConsistencyScore(consistencyResult.getScore());
+            score.addIssues(consistencyResult.getIssues());
+        }
+
+        // 综合评分
+        score.calculateOverall();  // 加权计算
+        return score;
+    }
+
+    @Override
+    public ReviewFeedback generateReviewFeedback(
+            String capability, Object output, ReviewScore score) {
+
+        // 基于评估结果生成结构化改进建议
+        // 可选: 调用 LLM 生成自然语言反馈
+        ReviewFeedback feedback = new ReviewFeedback();
+        feedback.setOverallScore(score.getOverallScore());
+
+        for (ReviewIssue issue : score.getIssues()) {
+            feedback.addSuggestion(new Suggestion(
+                issue.getDimension(),
+                issue.getDescription(),
+                issue.generateSuggestion()  // 自动生成改进建议
+            ));
+        }
+
+        return feedback;
+    }
+}
+```
+
+**自动审查与手动审查的关系**：
+
+```
+自动审查优化 (Auto-Review):
+  ├── 时机: Agent 每轮输出后立即执行
+  ├── 目的: 自动迭代改进，减少人工干预
+  ├── 执行者: 评估管线（自动）或审查 Agent（外部）
+  └── 结果: 通过 → 继续 / 不通过 → 自动迭代
+
+手动需求评审 (S8):
+  ├── 时机: 工作流完成后由用户触发
+  ├── 目的: 人工验收最终产出
+  ├── 执行者: 评审 Agent（外部，由用户选择）
+  └── 结果: 通过 → 完成 / 不通过 → 用户指令修改
+
+两者互补: 自动审查保证每步输出基本质量 → 手动评审确认最终产出满足业务需求
+```
+
+#### 1.9.3 审计日志表分区
 
 ```sql
 -- 审计日志按月分区（高写入量）

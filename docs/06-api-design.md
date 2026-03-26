@@ -168,6 +168,11 @@ PUT    /api/v1/employees/{id}/agents/{agentId}  更新绑定配置
 POST   /api/v1/employees/{id}/workflows   关联工作流模板
 DELETE /api/v1/employees/{id}/workflows/{code}  取消关联
 
+-- 自动审查优化配置
+PUT    /api/v1/employees/{id}/workflows/{code}/auto-review  配置自动审查
+GET    /api/v1/employees/{id}/workflows/{code}/auto-review  获取自动审查配置
+GET    /api/v1/tasks/{taskId}/review-iterations              查看审查迭代历史
+
 -- 考核与统计
 GET    /api/v1/employees/{id}/performance  绩效统计
 GET    /api/v1/employees/{id}/tasks        任务历史
@@ -301,6 +306,7 @@ GET    /api/v1/audit/trace/{traceId}       链路追踪
 | `dsl_update` | DSL 更新 | `{ "path": "...", "operation": "add", "value": {...} }` |
 | `command_update` | 指令状态变更 | `{ "id": "cmd1", "status": "done" }` |
 | `error` | 错误通知 | `{ "code": "...", "message": "..." }` |
+| `auto_review` | 自动审查状态 | `{ "capability": "...", "iteration": 2, "max_iterations": 3, "score": 65, "threshold": 80, "status": "iterating" }` |
 | `done` | 流程完成 | `{ "message": "处理完成" }` |
 
 ### 4.2 SSE 连接

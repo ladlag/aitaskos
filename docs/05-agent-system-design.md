@@ -779,6 +779,97 @@ Agent 输出 → 自动评估管线
     └── 隐式信号（用户修改次数、重试次数）
 ```
 
+### 7.4 自动审查优化机制
+
+> 开关打开后，Agent 每轮输出自动经过评估管线审查，与需求/输入要求不一致的地方可自动发起迭代优化，最多 N 次。
+
+#### 7.4.1 核心流程
+
+```
+Agent 执行 → 输出结果
+    │
+    ▼
+评估管线审查（自动）
+    │
+    ├── 评分 ≥ 阈值 → ✅ 通过，继续工作流
+    │
+    └── 评分 < 阈值 → 生成审查反馈
+                          │
+                          ▼
+                    迭代次数 < 最大次数？
+                          │
+                     ├── 是 → 将审查反馈 + 原始输入 + 上轮输出重新发给 Agent
+                     │         ↑ （回到 Agent 执行）
+                     │
+                     └── 否 → 采用最佳结果 + 通知用户
+```
+
+#### 7.4.2 配置项
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `auto_review_enabled` | boolean | false | 自动审查开关 |
+| `max_iterations` | int | 3 | 最大自动迭代次数（1-10） |
+| `quality_threshold` | int | 80 | 质量阈值（0-100） |
+| `review_agent_id` | string | null | 审查用 Agent ID（null 则用内置评估管线） |
+| `review_dimensions` | array | ["completeness","consistency","clarity"] | 审查维度 |
+| `iteration_strategy` | string | "feedback_loop" | feedback_loop（带反馈迭代）/ simple_retry（简单重试） |
+| `scope` | string | "all" | all（所有步骤）/ final（仅最终输出）/ custom（指定步骤） |
+| `notify_on_max_iterations` | boolean | true | 达到最大次数时通知用户 |
+
+#### 7.4.3 迭代输入构造
+
+```json
+{
+  "original_input": { /* 原始输入内容 */ },
+  "previous_output": { /* 上一轮 Agent 输出 */ },
+  "review_feedback": {
+    "overall_score": 65,
+    "issues": [
+      {
+        "dimension": "completeness",
+        "score": 50,
+        "description": "缺少用户角色权限的描述",
+        "suggestion": "请补充管理员、普通用户、访客三种角色的权限说明"
+      },
+      {
+        "dimension": "consistency",
+        "score": 70,
+        "description": "流程图中的审批节点与 PRD 中描述不一致",
+        "suggestion": "请统一审批流程为：提交→部门审批→财务审批→完成"
+      }
+    ]
+  },
+  "iteration": 2,
+  "max_iterations": 3
+}
+```
+
+#### 7.4.4 两种迭代策略
+
+**feedback_loop（带反馈迭代）**：将审查反馈、上轮输出和改进建议一并传给 Agent，Agent 据此针对性改进。适用于 LLM Agent，因为 LLM 能理解自然语言反馈。
+
+**simple_retry（简单重试）**：仅使用原始输入重新调用 Agent，不传递反馈。适用于输出存在随机性的场景，通过多次执行取最佳结果。
+
+#### 7.4.5 SSE 事件推送
+
+审查过程中向前端推送实时状态：
+
+```json
+{
+  "event": "auto_review_status",
+  "data": {
+    "capability": "prd_generation",
+    "iteration": 2,
+    "max_iterations": 3,
+    "score": 65,
+    "threshold": 80,
+    "status": "iterating",
+    "issues_summary": "缺少权限描述，流程不一致"
+  }
+}
+```
+
 ## 8. 多 Agent 协作模式
 
 ### 8.1 协作模式定义

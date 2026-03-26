@@ -101,12 +101,14 @@ public class NewRequirementWorkflowImpl implements NewRequirementWorkflow {
 
     @Override
     public WorkflowResult execute(RequirementInput input) {
+        AutoReviewConfig reviewConfig = input.getAutoReviewConfig(); // 从工作流模板获取
+
         // 1. 输入预处理（平台内部能力）
         ParsedInput parsed = activities.parseInput(input);
 
-        // 2. 需求理解（调度到外部 Agent）
-        UnderstandingResult understanding = activities.dispatchToAgent(
-            "requirement_analysis", parsed);
+        // 2. 需求理解（调度到外部 Agent）+ 自动审查
+        UnderstandingResult understanding = dispatchWithAutoReview(
+            "requirement_analysis", parsed, reviewConfig);
 
         // 3. 需求澄清（调度到外部 Agent，可能多轮）
         ClarificationResult clarification = activities.dispatchToAgent(
@@ -126,15 +128,15 @@ public class NewRequirementWorkflowImpl implements NewRequirementWorkflow {
             this.userAnswers = null;
         }
 
-        // 4. 需求拆解（调度到外部 Agent）
-        DecompositionResult decomposition = activities.dispatchToAgent(
-            "requirement_decomposition", clarification);
+        // 4. 需求拆解（调度到外部 Agent）+ 自动审查
+        DecompositionResult decomposition = dispatchWithAutoReview(
+            "requirement_decomposition", clarification, reviewConfig);
 
-        // 5. 并行调度外部 Agent: PRD 生成 + 流程设计
+        // 5. 并行调度外部 Agent: PRD 生成 + 流程设计（各自带自动审查）
         Promise<PrdResult> prdPromise = Async.function(
-            () -> activities.dispatchToAgent("prd_generation", decomposition));
+            () -> dispatchWithAutoReview("prd_generation", decomposition, reviewConfig));
         Promise<FlowResult> flowPromise = Async.function(
-            () -> activities.dispatchToAgent("flow_design", decomposition));
+            () -> dispatchWithAutoReview("flow_design", decomposition, reviewConfig));
 
         PrdResult prd = prdPromise.get();
         FlowResult flow = flowPromise.get();
@@ -148,8 +150,65 @@ public class NewRequirementWorkflowImpl implements NewRequirementWorkflow {
 
         return new WorkflowResult(dsl, review);
     }
+
+    /**
+     * 带自动审查优化的 Agent 调度
+     * 开关打开后，Agent 每轮输出自动经过评估管线审查，
+     * 不达标时携带审查反馈自动发起迭代，最多 N 次。
+     */
+    private <T> T dispatchWithAutoReview(
+            String capability, Object input, AutoReviewConfig config) {
+        if (config == null || !config.isEnabled()) {
+            return activities.dispatchToAgent(capability, input);
+        }
+
+        int maxIterations = config.getMaxIterations();  // 默认 3
+        int threshold = config.getQualityThreshold();   // 默认 80
+
+        Object currentInput = input;
+        T lastResult = null;
+        ReviewFeedback lastFeedback = null;
+
+        for (int iteration = 1; iteration <= maxIterations; iteration++) {
+            // 构造输入：首轮用原始输入，后续轮次附带审查反馈
+            Object agentInput = (iteration == 1) ? currentInput
+                : new IterationInput(currentInput, lastFeedback, iteration);
+
+            // 调度 Agent 执行
+            lastResult = activities.dispatchToAgent(capability, agentInput);
+
+            // 通过评估管线审查输出
+            ReviewScore score = activities.evaluateOutput(
+                capability, lastResult, input, config.getReviewDimensions());
+
+            // 推送审查进度到前端
+            activities.pushReviewStatus(capability, iteration, maxIterations, score);
+
+            // 达标则通过，退出迭代
+            if (score.getOverallScore() >= threshold) {
+                break;
+            }
+
+            // 未达标 & 已达最大次数 → 采用最佳结果 + 通知用户
+            if (iteration == maxIterations) {
+                if (config.isNotifyOnMaxIterations()) {
+                    activities.notifyUser("auto_review_max_reached",
+                        capability, iteration, score);
+                }
+                break;
+            }
+
+            // 未达标 → 生成改进反馈，进入下一轮
+            lastFeedback = activities.generateReviewFeedback(
+                capability, lastResult, score);
+        }
+
+        return lastResult;
+    }
 }
 ```
+
+> **自动审查优化机制**：`dispatchWithAutoReview()` 实现了"执行→评估→反馈→重新执行"的闭环。开关关闭时等同于直接调用 `dispatchToAgent()`，零额外开销。审查反馈会作为下一轮输入的一部分传递给 Agent，使 Agent 能针对性地改进输出。
 
 > **注意**：所有 `dispatchToAgent()` 调用都是通过 Agent Gateway 调度到外部 Agent。平台内部只执行 `parseInput()`（文件预处理）和 `mergeDsl()`（DSL 合并验证）等基础能力。
 

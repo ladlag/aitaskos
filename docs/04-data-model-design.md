@@ -495,9 +495,23 @@ CREATE TABLE employee_workflow_templates (
     workflow_code   VARCHAR(100) NOT NULL,              -- 工作流模板代码
     collaboration_mode VARCHAR(20) DEFAULT 'chain',     -- chain/fanout/voting/delegation
     collaboration_config JSONB,                         -- 协作配置详情
+    auto_review_enabled BOOLEAN DEFAULT FALSE,          -- 自动审查优化开关
+    auto_review_config  JSONB,                          -- 自动审查配置（见下方说明）
     config          JSONB,                              -- 工作流参数覆盖
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- auto_review_config JSONB 结构说明:
+-- {
+--   "max_iterations": 3,            -- 最大自动迭代次数（1-10，默认 3）
+--   "quality_threshold": 80,        -- 质量阈值（0-100，评分 ≥ 此值视为通过）
+--   "review_agent_id": null,        -- 审查 Agent ID（null 则用评估管线自动评估）
+--   "review_dimensions": ["completeness", "consistency", "clarity"],  -- 审查维度
+--   "iteration_strategy": "feedback_loop",  -- feedback_loop（带反馈迭代）/ simple_retry（简单重试）
+--   "scope": "all",                 -- all（所有步骤）/ final（仅最终输出）/ custom（自定义步骤列表）
+--   "custom_steps": [],             -- scope=custom 时，指定哪些步骤启用审查
+--   "notify_on_max_iterations": true -- 达到最大次数时是否通知用户
+-- }
 
 -- ============================================================
 -- Agent 管理（全部为外部 Agent）
@@ -530,6 +544,10 @@ CREATE TABLE agent_executions (
     response_payload JSONB,
     status          VARCHAR(20) DEFAULT 'running',      -- running/success/failed/timeout
     progress        INTEGER DEFAULT 0,                   -- 0-100
+    iteration       INTEGER DEFAULT 1,                   -- 当前迭代轮次（自动审查优化时 >1）
+    parent_execution_id BIGINT REFERENCES agent_executions(id),  -- 上一轮执行 ID（迭代链）
+    review_score    DECIMAL(5,2),                        -- 审查评分（触发迭代的评分）
+    review_feedback JSONB,                               -- 审查反馈（传递给下一轮的改进建议）
     logs            TEXT,
     artifacts       JSONB,                               -- 输出制品
     error_message   TEXT,

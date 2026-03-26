@@ -393,6 +393,196 @@
 
 ---
 
+## 6.5 功能测试用例 — 自动审查优化机制
+
+### TC-AR-001: 自动审查开关关闭时不触发审查
+
+```
+测试 ID:    TC-AR-001
+标题:      自动审查开关关闭时正常执行无额外审查
+优先级:    P0
+
+前置条件:
+  - 数字员工已配置，auto_review_enabled = false
+
+步骤:
+  1. 创建任务触发工作流
+  2. Agent 返回输出（质量评分 60，低于默认阈值 80）
+
+预期结果:
+  - 工作流正常完成，不触发自动审查
+  - Agent 只执行 1 次
+  - 无 auto_review SSE 事件推送
+  - agent_executions 记录 iteration = 1
+
+验证点:
+  ✅ 开关关闭时零额外开销
+  ✅ 行为与原有流程完全一致
+```
+
+### TC-AR-002: 首轮输出达标直接通过
+
+```
+测试 ID:    TC-AR-002
+标题:      自动审查开启，首轮输出评分达标，不迭代
+优先级:    P0
+
+前置条件:
+  - auto_review_enabled = true
+  - quality_threshold = 80
+  - max_iterations = 3
+
+步骤:
+  1. 创建任务触发工作流
+  2. Agent 返回高质量输出（评估管线评分 85）
+
+预期结果:
+  - 评估管线执行 1 次
+  - 评分 85 ≥ 阈值 80 → 直接通过
+  - Agent 只执行 1 次
+  - SSE 推送 auto_review 事件：iteration=1, status="passed"
+
+验证点:
+  ✅ 达标输出不触发不必要的迭代
+  ✅ 审查状态正确推送
+```
+
+### TC-AR-003: 首轮不达标，第二轮达标
+
+```
+测试 ID:    TC-AR-003
+标题:      自动审查迭代一次后达标
+优先级:    P0
+
+前置条件:
+  - auto_review_enabled = true
+  - quality_threshold = 80
+  - max_iterations = 3
+  - iteration_strategy = "feedback_loop"
+
+步骤:
+  1. 创建任务触发工作流
+  2. Agent 首轮输出评分 60（不达标）
+  3. 系统生成审查反馈并重新调度 Agent
+  4. Agent 第二轮输出评分 90（达标）
+
+预期结果:
+  - Agent 执行 2 次
+  - 第二轮输入包含 review_feedback 和 previous_output
+  - agent_executions 有 2 条记录：
+    - iteration=1, review_score=60
+    - iteration=2, parent_execution_id=第一条ID
+  - SSE 推送 2 个 auto_review 事件
+
+验证点:
+  ✅ 审查反馈正确传递给 Agent
+  ✅ 迭代链路（parent_execution_id）正确
+  ✅ 最终采用第二轮输出
+```
+
+### TC-AR-004: 达到最大迭代次数
+
+```
+测试 ID:    TC-AR-004
+标题:      多轮迭代均不达标，达到最大次数后停止
+优先级:    P0
+
+前置条件:
+  - auto_review_enabled = true
+  - quality_threshold = 80
+  - max_iterations = 3
+  - notify_on_max_iterations = true
+
+步骤:
+  1. Agent 三轮输出评分分别为 50、60、65（均不达标）
+
+预期结果:
+  - Agent 执行 3 次后停止（不超过 max_iterations）
+  - 采用评分最高的一轮输出（65 分）
+  - 向用户发送通知："自动审查优化已达最大迭代次数（3次），
+    当前最佳评分 65/80，请人工审查"
+  - SSE 推送最终事件：status="max_iterations_reached"
+
+验证点:
+  ✅ 严格不超过 max_iterations
+  ✅ 用户通知正确发送
+  ✅ 采用最佳结果而非最后结果
+```
+
+### TC-AR-005: simple_retry 策略
+
+```
+测试 ID:    TC-AR-005
+标题:      简单重试策略不传递反馈
+优先级:    P1
+
+前置条件:
+  - auto_review_enabled = true
+  - iteration_strategy = "simple_retry"
+
+步骤:
+  1. Agent 首轮输出评分 60（不达标）
+  2. 系统重新调度 Agent
+
+预期结果:
+  - 第二轮输入 = 原始输入（不包含 review_feedback）
+  - Agent 使用原始输入重新执行
+
+验证点:
+  ✅ simple_retry 不传递反馈
+  ✅ 输入与首轮完全相同
+```
+
+### TC-AR-006: scope=final 仅审查最终输出
+
+```
+测试 ID:    TC-AR-006
+标题:      scope=final 时仅对工作流最终输出进行审查
+优先级:    P1
+
+前置条件:
+  - auto_review_enabled = true
+  - scope = "final"
+
+步骤:
+  1. 工作流执行多个步骤
+  2. 中间步骤（需求理解、拆解）输出评分低
+
+预期结果:
+  - 中间步骤不触发自动审查
+  - 仅最终输出（DSL 合并后）经过审查
+
+验证点:
+  ✅ 中间步骤不被审查
+  ✅ 仅最终步骤触发审查迭代
+```
+
+### TC-AR-007: 使用外部审查 Agent
+
+```
+测试 ID:    TC-AR-007
+标题:      配置 review_agent_id 时使用外部 Agent 审查
+优先级:    P1
+
+前置条件:
+  - auto_review_enabled = true
+  - review_agent_id = "agent_reviewer_001"
+
+步骤:
+  1. Agent 输出后调度审查 Agent 进行评审
+
+预期结果:
+  - 审查由 review_agent_id 指定的外部 Agent 执行（而非内置评估管线）
+  - 审查 Agent 返回结构化评分和反馈
+  - 反馈传递给原 Agent 进行迭代
+
+验证点:
+  ✅ 外部审查 Agent 正确调度
+  ✅ 评分格式与内置管线兼容
+```
+
+---
+
 ## 7. 集成测试用例
 
 ### TC-INT-001: 任务创建到 Agent 执行全链路
