@@ -85,6 +85,12 @@ Agent 接入层（所有 Agent 均为外部独立服务）
 │   ├── PRD 生成 Agent
 │   ├── 流程设计 Agent
 │   └── 自定义工作流 Agent
+├── OpenAI Agents SDK Agent (Python/TypeScript Agent 框架)
+│   └── 基于 OpenAI Agents SDK 构建的 Agent（支持 Handoff、Guardrails）
+├── Vercel AI SDK Agent (多模型 TypeScript 工具包)
+│   └── 基于 Vercel AI SDK 构建的 Agent（多模型统一接入，常与 OpenAI Agents SDK 搭配）
+├── DeerFlow Agent (SuperAgent 编排运行时)
+│   └── 基于 DeerFlow 2.0 构建的 Agent（Docker 沙箱隔离执行，字节跳动开源）
 ├── 自建 Agent (标准协议接入)
 │   └── 任何遵循平台标准协议的 Agent
 └── 第三方 Agent (适配器接入)
@@ -115,6 +121,7 @@ Agent 接入层（所有 Agent 均为外部独立服务）
 - 平台不耦合任何业务 Agent，只提供标准协议接入能力
 - 兼容 A2A 和 MCP 两大行业标准协议，降低 Agent 接入门槛，实现跨平台互操作
 - LangChain4j 可用于自建 Agent（独立于平台部署），但不是平台依赖
+- OpenAI Agents SDK (MIT) / Vercel AI SDK (Apache 2.0) / DeerFlow 2.0 (MIT) 均为主流 Agent 构建框架，用户可自由选用后接入平台
 
 ### 2.4 AI 模型层
 

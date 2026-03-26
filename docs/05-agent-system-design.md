@@ -19,6 +19,9 @@
 | 来源 | 说明 | 示例 |
 |------|------|------|
 | Dify 创建 | 通过 Dify 平台可视化编排的 AI 工作流 | BA Agent、代码审查 Agent |
+| OpenAI Agents SDK | 基于 OpenAI Agents SDK 构建的 Agent（Python/TypeScript） | 多步推理 Agent、带 Handoff 的协作 Agent |
+| Vercel AI SDK | 基于 Vercel AI SDK 构建的 Agent（TypeScript，多模型） | 流式 Web UI Agent、多模型切换 Agent |
+| DeerFlow 2.0 | 基于 DeerFlow SuperAgent 运行时构建的 Agent | 长任务自主执行 Agent、沙箱代码运行 Agent |
 | 自行开发 | 团队自主开发，遵循平台标准协议 | 存量系统分析 Agent |
 | 第三方服务 | 外部 AI 服务，通过适配器接入 | GPT Agent、Claude Agent |
 
@@ -503,6 +506,8 @@ Dify 工作流示例: BA PRD 生成 Agent
 | A2A Agent | A2A Protocol (HTTP + SSE) | 标准 A2A Agent Card 发现 + Task Model |
 | Dify Agent | Dify API (HTTP) | 转换为 Dify Workflow API 格式 |
 | MCP Agent | MCP Protocol | Agent 通过 MCP 调用平台工具 |
+| OpenAI Agents SDK Agent | HTTP REST | 标准 JSON 协议（Agent 内部使用 OpenAI Agents SDK 编排） |
+| DeerFlow Agent | HTTP REST | 标准 JSON 协议（Agent 内部使用 DeerFlow 2.0 SuperAgent 运行时） |
 | 自建 Agent | HTTP REST | 标准 JSON 协议 |
 | 自建 Agent | gRPC | Protocol Buffers 协议 |
 | 第三方 Agent | HTTP REST | 标准 JSON 协议 + 自定义适配器 |
@@ -511,6 +516,7 @@ Dify 工作流示例: BA PRD 生成 Agent
 ```
 新接入 Agent → 推荐 A2A 协议（行业标准，跨平台互操作）
 Dify Agent  → Dify API 适配器（无缝集成）
+OpenAI Agents SDK / DeerFlow Agent → HTTP REST 标准 JSON 协议（Agent 内部编排透明）
 存量 Agent  → 自定义 HTTP REST（向后兼容）
 Agent 工具调用 → MCP 协议（Agent 访问平台 DSL/知识库/文件）
 ```
