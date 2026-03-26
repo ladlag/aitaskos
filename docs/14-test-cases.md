@@ -583,6 +583,198 @@
 
 ---
 
+## 6.6 功能测试用例 — 任务条目化与追溯
+
+### TC-TI-001: 从 Agent 输出自动提取条目
+
+```
+测试 ID:    TC-TI-001
+标题:      PRD 生成后自动提取需求条目
+优先级:    P0
+
+前置条件:
+  - 任务已创建并分配 Agent
+  - Agent 输出包含 DSL features 数组
+
+步骤:
+  1. Agent 完成 PRD 生成任务
+  2. 系统自动从 output_data.features 中提取条目
+
+预期结果:
+  - 每个 feature 生成一个 task_item（category=requirement）
+  - 条目 source_type = "agent_output"
+  - 条目 source_ref 包含 execution_id 和 dsl_path
+  - task_item_audit_trail 记录 action="created"
+
+验证点:
+  ✅ 条目数量与 features 数量一致
+  ✅ 条目标题/描述正确映射
+  ✅ 审计轨迹自动生成
+```
+
+### TC-TI-002: 条目分类筛选
+
+```
+测试 ID:    TC-TI-002
+标题:      按分类筛选条目列表
+优先级:    P0
+
+前置条件:
+  - 任务有多个条目: 3个 requirement + 2个 design + 1个 review
+
+步骤:
+  1. GET /api/v1/tasks/{id}/items?category=requirement
+  2. GET /api/v1/tasks/{id}/items?category=design
+  3. GET /api/v1/tasks/{id}/items (无筛选)
+
+预期结果:
+  - category=requirement → 返回 3 条
+  - category=design → 返回 2 条
+  - 无筛选 → 返回 6 条
+
+验证点:
+  ✅ 分类筛选正确
+  ✅ 返回结果包含分类统计
+```
+
+### TC-TI-003: 条目关联与追溯链
+
+```
+测试 ID:    TC-TI-003
+标题:      创建条目关联并查看追溯链
+优先级:    P0
+
+前置条件:
+  - requirement 条目 A
+  - design 条目 B（由 A 派生）
+  - development 条目 C（实现 B）
+
+步骤:
+  1. POST 创建关联: A ──derives_from──▶ B
+  2. POST 创建关联: B ──implements──▶ C
+  3. GET /api/v1/items/{A}/trace
+
+预期结果:
+  - 追溯链: A → B → C（下游方向）
+  - 从 C 追溯: C → B → A（上游方向）
+  - 关联关系类型正确
+
+验证点:
+  ✅ 追溯链完整（上下游双向）
+  ✅ 防止循环引用
+  ✅ 深度限制（最大 10 层）
+```
+
+### TC-TI-004: 条目交付物关联
+
+```
+测试 ID:    TC-TI-004
+标题:      为条目关联交付物并查看
+优先级:    P0
+
+前置条件:
+  - design 条目存在
+  - DSL 片段已生成
+
+步骤:
+  1. POST /api/v1/items/{itemId}/deliverables 关联 DSL 片段
+  2. POST /api/v1/items/{itemId}/deliverables 关联设计文档
+  3. GET /api/v1/items/{itemId}/deliverables
+
+预期结果:
+  - 返回 2 个交付物
+  - deliverable_type 分别为 dsl_fragment 和 document
+  - content_ref 包含正确引用信息
+
+验证点:
+  ✅ 交付物正确关联到条目
+  ✅ 通过条目追溯可查到所有交付物
+  ✅ 交付物版本号正确
+```
+
+### TC-TI-005: 条目审计轨迹
+
+```
+测试 ID:    TC-TI-005
+标题:      条目操作产生完整审计轨迹
+优先级:    P0
+
+前置条件:
+  - 条目已创建
+
+步骤:
+  1. 创建条目 → 记录 action=created
+  2. 更新条目标题 → 记录 action=updated
+  3. 变更状态 pending→in_progress → 记录 action=status_changed
+  4. 添加关联 → 记录 action=relation_added
+  5. 添加交付物 → 记录 action=deliverable_added
+  6. GET /api/v1/items/{itemId}/audit-trail
+
+预期结果:
+  - 返回 5 条审计记录，按时间倒序排列
+  - 每条记录包含: action, actor_type, actor_id, old_value, new_value
+  - status_changed 记录有 old_value 和 new_value
+
+验证点:
+  ✅ 所有操作都有审计记录
+  ✅ 变更前后值完整记录
+  ✅ actor_type 正确区分 user/agent/system
+```
+
+### TC-TI-006: 条目树形结构
+
+```
+测试 ID:    TC-TI-006
+标题:      条目支持层级结构（父子条目）
+优先级:    P1
+
+前置条件:
+  - 父条目 A (requirement)
+  - 子条目 A.1, A.2 (requirement，parent_item_id = A)
+
+步骤:
+  1. GET /api/v1/tasks/{id}/items/tree
+
+预期结果:
+  - 返回树形结构：A 包含 children [A.1, A.2]
+  - 扁平条目列表中 A.1, A.2 的 parent_item_id = A.id
+
+验证点:
+  ✅ 树形结构正确嵌套
+  ✅ 子条目与父条目关联正确
+```
+
+### TC-TI-007: 条目分类统计摘要
+
+```
+测试 ID:    TC-TI-007
+标题:      查看任务条目分类统计
+优先级:    P1
+
+前置条件:
+  - 任务有多种分类的条目
+
+步骤:
+  1. GET /api/v1/tasks/{id}/items/summary
+
+预期结果:
+  - 返回各分类的条目数量和状态分布:
+    {
+      "total": 10,
+      "by_category": {
+        "requirement": {"total": 4, "completed": 2, "pending": 2},
+        "design": {"total": 3, "completed": 1, "in_progress": 2},
+        "review": {"total": 3, "completed": 3}
+      }
+    }
+
+验证点:
+  ✅ 分类统计准确
+  ✅ 状态分布正确
+```
+
+---
+
 ## 7. 集成测试用例
 
 ### TC-INT-001: 任务创建到 Agent 执行全链路

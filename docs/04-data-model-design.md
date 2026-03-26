@@ -425,6 +425,111 @@ CREATE TABLE task_dependencies (
 );
 
 -- ============================================================
+-- 任务条目（Work Items）—— 任务的结构化分解与追溯
+-- ============================================================
+
+-- 任务条目: 将任务输出拆分为可独立跟踪的条目
+CREATE TABLE task_items (
+    id              BIGSERIAL PRIMARY KEY,
+    task_id         BIGINT NOT NULL REFERENCES tasks(id),
+    parent_item_id  BIGINT REFERENCES task_items(id),     -- 父条目（支持条目层级）
+    title           VARCHAR(500) NOT NULL,
+    description     TEXT,
+    category        VARCHAR(50) NOT NULL,                  -- 条目分类（见下方说明）
+    status          VARCHAR(20) DEFAULT 'pending',         -- pending/in_progress/completed/rejected
+    priority        VARCHAR(10) DEFAULT 'normal',          -- high/normal/low
+    source_type     VARCHAR(30),                           -- 条目来源: agent_output/user_created/decomposed
+    source_ref      JSONB,                                 -- 来源引用 {execution_id, dsl_path, ...}
+    acceptance_criteria TEXT,                               -- 验收标准
+    metadata        JSONB,                                 -- 扩展元数据
+    created_by      BIGINT REFERENCES users(id),
+    completed_at    TIMESTAMP,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- category 取值说明:
+-- requirement:   需求条目（功能需求、非功能需求）
+-- design:        设计条目（PRD 章节、流程节点、页面设计）
+-- development:   开发条目（模块、接口、数据库变更）
+-- testing:       测试条目（测试用例、测试场景）
+-- review:        评审条目（评审意见、修改项）
+-- documentation: 文档条目
+
+CREATE INDEX idx_item_task ON task_items(task_id);
+CREATE INDEX idx_item_category ON task_items(category);
+CREATE INDEX idx_item_status ON task_items(status);
+CREATE INDEX idx_item_parent ON task_items(parent_item_id);
+
+-- 条目关联关系: 条目之间的多对多关联
+CREATE TABLE task_item_relations (
+    id              BIGSERIAL PRIMARY KEY,
+    source_item_id  BIGINT NOT NULL REFERENCES task_items(id),
+    target_item_id  BIGINT NOT NULL REFERENCES task_items(id),
+    relation_type   VARCHAR(30) NOT NULL,                  -- 关联类型（见下方说明）
+    description     TEXT,                                   -- 关联说明
+    created_by      BIGINT REFERENCES users(id),
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_item_id, target_item_id, relation_type)
+);
+
+-- relation_type 取值说明:
+-- derives_from:  派生自（需求 → 设计）
+-- implements:    实现（设计 → 开发）
+-- tests:         测试（测试 → 需求/开发）
+-- blocks:        阻塞（A 阻塞 B）
+-- relates_to:    一般关联
+-- duplicates:    重复
+
+CREATE INDEX idx_rel_source ON task_item_relations(source_item_id);
+CREATE INDEX idx_rel_target ON task_item_relations(target_item_id);
+CREATE INDEX idx_rel_type ON task_item_relations(relation_type);
+
+-- 条目交付物: 条目关联的产出制品
+CREATE TABLE task_item_deliverables (
+    id              BIGSERIAL PRIMARY KEY,
+    item_id         BIGINT NOT NULL REFERENCES task_items(id),
+    name            VARCHAR(200) NOT NULL,
+    deliverable_type VARCHAR(30) NOT NULL,                 -- 交付物类型（见下方说明）
+    content_ref     JSONB NOT NULL,                        -- 内容引用
+    version         INTEGER DEFAULT 1,                     -- 版本号
+    file_id         BIGINT,                                -- 关联文件 ID（file-service）
+    status          VARCHAR(20) DEFAULT 'draft',           -- draft/final/superseded
+    created_by      BIGINT REFERENCES users(id),
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- deliverable_type 取值说明:
+-- dsl_fragment:   DSL 片段（content_ref: {dsl_document_id, path}）
+-- document:       文档（content_ref: {file_id, format}）
+-- code_artifact:  代码制品（content_ref: {repo_url, branch, path}）
+-- test_report:    测试报告（content_ref: {report_url, summary}）
+-- review_record:  评审记录（content_ref: {review_id, comments}）
+-- diagram:        图表（content_ref: {file_id, diagram_type}）
+
+CREATE INDEX idx_deliverable_item ON task_item_deliverables(item_id);
+CREATE INDEX idx_deliverable_type ON task_item_deliverables(deliverable_type);
+
+-- 条目审计轨迹: 记录条目的每一次状态变更和操作
+CREATE TABLE task_item_audit_trail (
+    id              BIGSERIAL PRIMARY KEY,
+    item_id         BIGINT NOT NULL REFERENCES task_items(id),
+    action          VARCHAR(50) NOT NULL,                  -- created/status_changed/updated/relation_added/deliverable_added/reviewed
+    old_value       JSONB,                                 -- 变更前的值
+    new_value       JSONB,                                 -- 变更后的值
+    actor_type      VARCHAR(20) NOT NULL,                  -- user/agent/system
+    actor_id        BIGINT,                                -- 操作者 ID
+    execution_id    BIGINT REFERENCES agent_executions(id),-- 关联的 Agent 执行 ID
+    comment         TEXT,                                  -- 操作备注
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_trail_item ON task_item_audit_trail(item_id);
+CREATE INDEX idx_trail_action ON task_item_audit_trail(action);
+CREATE INDEX idx_trail_time ON task_item_audit_trail(created_at);
+
+-- ============================================================
 -- 指令队列
 -- ============================================================
 

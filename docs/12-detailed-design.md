@@ -148,19 +148,35 @@ Redis Key 设计:
 task-service/
 ├── controller/
 │   ├── TaskController            # 任务 CRUD
+│   ├── TaskItemController        # 任务条目管理
+│   ├── TaskItemRelationController # 条目关联管理
+│   ├── TaskItemDeliverableController # 条目交付物管理
 │   ├── CommandQueueController    # 指令队列管理
 │   └── TaskGraphController       # Task Graph DAG 管理
 ├── service/
 │   ├── TaskService               # 任务生命周期
+│   ├── TaskItemService           # 条目 CRUD + 分类管理
+│   ├── TaskItemRelationService   # 条目关联 + 追溯链计算
+│   ├── TaskItemDeliverableService # 交付物关联管理
+│   ├── TaskItemAuditService      # 条目审计轨迹记录
+│   ├── TaskItemAutoExtractor     # 从 Agent 输出自动提取条目
 │   ├── CommandQueueService       # 指令队列优先级排序
 │   ├── TaskGraphService          # DAG 拓扑排序与执行
 │   └── TaskEventService          # 事件发布
 ├── repository/
 │   ├── TaskRepository
+│   ├── TaskItemRepository
+│   ├── TaskItemRelationRepository
+│   ├── TaskItemDeliverableRepository
+│   ├── TaskItemAuditTrailRepository
 │   ├── CommandQueueRepository
 │   └── TaskDependencyRepository
 ├── domain/
 │   ├── Task
+│   ├── TaskItem
+│   ├── TaskItemRelation
+│   ├── TaskItemDeliverable
+│   ├── TaskItemAuditTrail
 │   ├── CommandQueue
 │   └── TaskDependency
 ├── queue/                # 指令队列核心
@@ -171,7 +187,150 @@ task-service/
     └── TaskStatusConsumer
 ```
 
-#### 1.2.2 指令队列优先级算法
+#### 1.2.2 任务条目化详细设计
+
+**条目自动提取**：当 Agent 完成任务输出后，平台自动从输出中提取结构化条目：
+
+```java
+public class TaskItemAutoExtractor {
+
+    /**
+     * 从 Agent 输出中自动提取条目
+     *
+     * 提取规则:
+     *   - PRD 输出 → 按功能模块拆分为 requirement 条目
+     *   - 流程设计输出 → 按流程节点拆分为 design 条目
+     *   - 需求拆解输出 → 按子需求拆分为 requirement 条目
+     *   - 评审输出 → 按评审意见拆分为 review 条目
+     */
+    public List<TaskItem> extractItems(AgentExecution execution) {
+        String capability = execution.getCapability();
+        Object output = execution.getResponsePayload();
+
+        return switch (capability) {
+            case "prd_generation" -> extractFromPrd(output, execution);
+            case "flow_design" -> extractFromFlowDesign(output, execution);
+            case "requirement_decomposition" -> extractFromDecomposition(output, execution);
+            case "requirement_review" -> extractFromReview(output, execution);
+            default -> extractGeneric(output, execution);
+        };
+    }
+
+    private List<TaskItem> extractFromPrd(Object output, AgentExecution execution) {
+        List<TaskItem> items = new ArrayList<>();
+        // 从 DSL features 数组中提取功能条目
+        JsonNode features = objectMapper.valueToTree(output).path("features");
+        for (JsonNode feature : features) {
+            TaskItem item = new TaskItem();
+            item.setTaskId(execution.getTaskId());
+            item.setTitle(feature.path("name").asText());
+            item.setDescription(feature.path("description").asText());
+            item.setCategory("requirement");
+            item.setSourceType("agent_output");
+            item.setSourceRef(Map.of(
+                "execution_id", execution.getId(),
+                "dsl_path", "features." + feature.path("code").asText()
+            ));
+            items.add(item);
+        }
+        return items;
+    }
+}
+```
+
+**追溯链计算**：通过条目关联关系构建完整追溯链：
+
+```java
+public class TaskItemRelationService {
+
+    /**
+     * 计算条目的完整追溯链
+     *
+     * 返回从源需求到最终交付物的全链路:
+     *   需求条目 ──derives_from──▶ 设计条目 ──implements──▶ 开发条目 ──tests──▶ 测试条目
+     *
+     * 使用 BFS 双向遍历: 向上追溯(上游来源) + 向下追溯(下游产出)
+     */
+    public TraceResult getTraceChain(Long itemId) {
+        TraceResult result = new TraceResult();
+        result.setCurrentItem(itemRepository.findById(itemId));
+
+        // 上游追溯: 查找所有 derives_from / implements 来源
+        result.setUpstream(traceDirection(itemId, "upstream"));
+
+        // 下游追溯: 查找所有被本条目派生的条目
+        result.setDownstream(traceDirection(itemId, "downstream"));
+
+        // 关联交付物
+        result.setDeliverables(deliverableRepository.findByItemIdIn(
+            result.getAllItemIds()));
+
+        return result;
+    }
+
+    private List<TraceNode> traceDirection(Long itemId, String direction) {
+        // BFS 遍历，防止循环引用，最大深度 10
+        Queue<Long> queue = new LinkedList<>();
+        Set<Long> visited = new HashSet<>();
+        queue.add(itemId);
+        visited.add(itemId);
+
+        List<TraceNode> nodes = new ArrayList<>();
+        int depth = 0;
+
+        while (!queue.isEmpty() && depth < 10) {
+            int size = queue.size();
+            for (int i = 0; i < size; i++) {
+                Long current = queue.poll();
+                List<TaskItemRelation> relations = "upstream".equals(direction)
+                    ? relationRepository.findByTargetItemId(current)
+                    : relationRepository.findBySourceItemId(current);
+
+                for (TaskItemRelation rel : relations) {
+                    Long nextId = "upstream".equals(direction)
+                        ? rel.getSourceItemId() : rel.getTargetItemId();
+                    if (!visited.contains(nextId)) {
+                        visited.add(nextId);
+                        queue.add(nextId);
+                        nodes.add(new TraceNode(nextId, rel.getRelationType(), depth + 1));
+                    }
+                }
+            }
+            depth++;
+        }
+        return nodes;
+    }
+}
+```
+
+**条目审计自动记录**：所有条目操作自动记录到审计轨迹：
+
+```java
+@Aspect
+@Component
+public class TaskItemAuditAspect {
+
+    @AfterReturning(
+        pointcut = "execution(* TaskItemService.create*(..)) || " +
+                   "execution(* TaskItemService.update*(..)) || " +
+                   "execution(* TaskItemService.changeStatus(..))",
+        returning = "result")
+    public void auditItemOperation(JoinPoint jp, Object result) {
+        TaskItemAuditTrail trail = new TaskItemAuditTrail();
+        trail.setItemId(extractItemId(result));
+        trail.setAction(resolveAction(jp.getSignature().getName()));
+        trail.setActorType(SecurityContext.isAgent() ? "agent" : "user");
+        trail.setActorId(SecurityContext.getCurrentActorId());
+        trail.setNewValue(objectMapper.valueToTree(result));
+        auditTrailRepository.save(trail);
+
+        // 异步发布 Kafka 事件
+        kafkaTemplate.send("task.item.audit", trail);
+    }
+}
+```
+
+#### 1.2.3 指令队列优先级算法
 
 ```java
 public class PriorityCommandQueue {
@@ -217,7 +376,7 @@ public class PriorityCommandQueue {
 }
 ```
 
-#### 1.2.3 数据库索引
+#### 1.2.4 数据库索引
 
 ```sql
 -- 任务查询: 按项目+状态
@@ -230,6 +389,10 @@ CREATE INDEX idx_cmd_status_priority ON command_queue(status, priority DESC, cre
 -- 任务依赖: 快速查找前驱/后继
 CREATE INDEX idx_dep_task ON task_dependencies(task_id);
 CREATE INDEX idx_dep_depends ON task_dependencies(depends_on);
+
+-- 条目查询: 按任务+分类, 条目追溯
+CREATE INDEX idx_item_task_category ON task_items(task_id, category);
+CREATE INDEX idx_item_task_status ON task_items(task_id, status);
 ```
 
 ---

@@ -187,6 +187,32 @@ GET    /api/v1/tasks/{id}                  任务详情
 GET    /api/v1/tasks/{id}/executions       执行记录
 PUT    /api/v1/tasks/{id}/cancel           取消任务
 PUT    /api/v1/tasks/{id}/retry            重试任务
+
+-- 任务条目管理
+POST   /api/v1/tasks/{id}/items                    创建条目
+GET    /api/v1/tasks/{id}/items                    条目列表（支持分类筛选）
+GET    /api/v1/tasks/{id}/items/tree               条目树形结构
+GET    /api/v1/items/{itemId}                      条目详情
+PUT    /api/v1/items/{itemId}                      更新条目
+PUT    /api/v1/items/{itemId}/status               变更条目状态
+DELETE /api/v1/items/{itemId}                      删除条目
+
+-- 条目关联
+POST   /api/v1/items/{itemId}/relations            创建条目关联
+GET    /api/v1/items/{itemId}/relations            查看条目关联
+DELETE /api/v1/items/{itemId}/relations/{relationId} 删除条目关联
+GET    /api/v1/items/{itemId}/trace                追溯链（上下游条目全链路）
+
+-- 条目交付物
+POST   /api/v1/items/{itemId}/deliverables         关联交付物
+GET    /api/v1/items/{itemId}/deliverables         查看交付物列表
+GET    /api/v1/deliverables/{deliverableId}        交付物详情
+PUT    /api/v1/deliverables/{deliverableId}        更新交付物
+DELETE /api/v1/deliverables/{deliverableId}        删除交付物
+
+-- 条目审计
+GET    /api/v1/items/{itemId}/audit-trail          条目审计轨迹
+GET    /api/v1/tasks/{id}/items/summary            条目分类统计摘要
 ```
 
 ### 3.8 Agent 管理 API
