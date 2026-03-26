@@ -30,22 +30,17 @@
 
 > **结论**：AiTaskOS 作为调度平台，不依赖任何特定 Agent 框架。但应确保 Agent Gateway 能够兼容主流框架构建的 Agent。
 
-### 1.3 竞品数字员工方案对比
+### 1.3 横向对比结论与设计验证
 
-市场上已出现基于不同技术栈的数字员工解决方案，以下对比 AiTaskOS 与两种典型方案的定位差异：
+上述框架对比揭示了 AI Agent 领域的两个层次：
 
-| 维度 | **OpenAI Agents SDK + Vercel AI SDK** | **DeerFlow 2.0** | **AiTaskOS** |
-|------|--------------------------------------|------------------|-------------|
-| **定位** | Agent 构建框架 + 前端 UI 工具包 | SuperAgent 编排运行时 | 数字员工管理与任务调度平台 |
-| **核心能力** | Agent Loop、Handoff、多模型接入、流式 Web UI | 子 Agent 编排、Docker 沙箱、持久化记忆、自主执行 | 数字员工生命周期管理、任务分发、质量考核、审计追踪 |
-| **Agent 来源** | 自行编写（Python/TypeScript） | 内置 SuperAgent + 子 Agent | 外部接入（Dify/自建/第三方，含上述方案） |
-| **协议标准** | OpenAI 专属 API | 自有协议 | A2A + MCP + 自定义协议（开放标准） |
-| **模型支持** | OpenAI 模型为主（Vercel AI SDK 扩展多模型） | 任意 OpenAI 兼容模型 | 通过 LiteLLM 统一接入任意模型 |
-| **工作流编排** | 代码级编排 | 内置 DAG 编排 | Temporal 长流程编排 |
-| **企业级特性** | 需自行实现 | 基础（沙箱隔离） | 完善（多租户、审计、RBAC、考核） |
-| **互补关系** | 可作为 AiTaskOS 的外部 Agent 实现 | 可作为 AiTaskOS 的外部 Agent 提供方 | 作为调度管理层，统一管理上述方案构建的 Agent |
+- **Agent 构建层**：LangGraph、CrewAI、OpenAI Agents SDK 等框架解决的是"如何构建 Agent"的问题
+- **Agent 管理层**：AiTaskOS 解决的是"如何管理和调度 Agent"的问题
 
-> **关键洞察**：OpenAI Agents SDK + Vercel AI SDK 和 DeerFlow 2.0 都是 **Agent 构建/编排** 工具，而 AiTaskOS 是 **Agent 管理/调度** 平台。三者不是竞争关系，而是互补关系——用户可以用 OpenAI Agents SDK 或 DeerFlow 构建 Agent，然后注册到 AiTaskOS 平台，由平台统一管理、调度、监控和考核。
+两者处于不同抽象层级，不存在替代关系。此对比验证了当前设计的两个关键决策：
+
+1. **协议标准化（A2A + MCP）的必要性**：各框架使用不同技术栈和协议，平台必须通过标准协议屏蔽差异，而非为每个框架单独适配
+2. **Agent 来源无关性的正确性**：平台仅关注 Agent 的能力声明和协议规范，不关注 Agent 内部使用的具体框架
 
 ## 2. 协议标准化：MCP + A2A
 
