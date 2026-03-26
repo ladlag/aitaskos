@@ -653,11 +653,13 @@
   1. POST 创建关联: A ──derives_from──▶ B
   2. POST 创建关联: B ──implements──▶ C
   3. GET /api/v1/items/{A}/trace
+  4. POST 尝试创建循环关联: C ──derives_from──▶ A → 应被拒绝
 
 预期结果:
   - 追溯链: A → B → C（下游方向）
   - 从 C 追溯: C → B → A（上游方向）
   - 关联关系类型正确
+  - 步骤 4 返回 400 Bad Request（检测到循环引用）
 
 验证点:
   ✅ 追溯链完整（上下游双向）

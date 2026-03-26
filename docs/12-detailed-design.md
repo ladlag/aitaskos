@@ -235,6 +235,11 @@ public class TaskItemAutoExtractor {
         }
         return items;
     }
+
+    // extractFromFlowDesign: 从流程设计输出的 processes 数组提取 design 条目
+    // extractFromDecomposition: 从需求拆解输出的 sub_requirements 提取 requirement 子条目
+    // extractFromReview: 从评审输出的 review_comments 提取 review 条目
+    // extractGeneric: 将整个输出作为单个条目（category 根据 capability 推断）
 }
 ```
 
@@ -319,7 +324,8 @@ public class TaskItemAuditAspect {
         TaskItemAuditTrail trail = new TaskItemAuditTrail();
         trail.setItemId(extractItemId(result));
         trail.setAction(resolveAction(jp.getSignature().getName()));
-        trail.setActorType(SecurityContext.isAgent() ? "agent" : "user");
+        trail.setActorType(SecurityContext.isSystem() ? "system"
+            : SecurityContext.isAgent() ? "agent" : "user");
         trail.setActorId(SecurityContext.getCurrentActorId());
         trail.setNewValue(objectMapper.valueToTree(result));
         auditTrailRepository.save(trail);
